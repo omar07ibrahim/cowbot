@@ -128,3 +128,32 @@ This contract does not implement `queue_saturation_control`, an evaluator, a
 result codec, publication, overwrite behavior, or result visuals. Unit tests
 use synthetic row documents and pure arithmetic; they never call a scenario,
 monitor, or report function and never materialize `evaluation/results`.
+
+## Reproducible harness evidence
+
+The portfolio evidence for this slice is deliberately separate from both the
+worked replay and the reserved evaluation result namespace. It records the
+actual public preflight stdout and renders three source-derived views: the
+terminal capture, canonical plan integrity, and strict row/reducer contract.
+None contains holdout outcomes or seed values.
+
+Generate the bundle explicitly:
+
+```bash
+python3 tools/record_holdout_harness_evidence.py --write
+```
+
+Or regenerate it in memory and compare every committed byte without changing
+the working tree:
+
+```bash
+python3 tools/record_holdout_harness_evidence.py --check
+```
+
+The recorder invokes only `cowbot holdout-preflight`, repeats it to prove
+stable stdout, and exercises the same command with runtime-module imports
+blocked. It checks that the reserved namespace is unclaimed before and after,
+uses a secret-free environment, rejects symlinked or unexpected output
+entries, and publishes the manifest last. See
+[`holdout-evidence.md`](holdout-evidence.md) for the exact provenance and claim
+boundary.

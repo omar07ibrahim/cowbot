@@ -1,4 +1,5 @@
-.PHONY: check test simulate report evidence evidence-check clean
+.PHONY: check test simulate report evidence evidence-check
+.PHONY: holdout-evidence holdout-evidence-check clean
 
 PYTHON ?= python3
 
@@ -25,6 +26,12 @@ evidence:
 
 evidence-check:
 	$(PYTHON) tools/record_evidence.py --check
+
+holdout-evidence:
+	$(PYTHON) tools/record_holdout_harness_evidence.py --write
+
+holdout-evidence-check:
+	$(PYTHON) tools/record_holdout_harness_evidence.py --check
 
 clean:
 	rm -rf artifacts build dist

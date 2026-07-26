@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="782" viewBox="0 0 1400 782" role="img" aria-labelledby="plan-title plan-desc">
+  <title id="plan-title">COWBOT canonical holdout plan integrity</title>
+  <desc id="plan-desc">A source-derived plan integrity diagram showing a frozen protocol, 128 ordered incident-control pairs, 256 rows, 21,980 canonical ASCII bytes, and the exact plan digest. No seed or outcome values are rendered.</desc>
+  <style>
+    .bg { fill: #07111f; }
+    .panel { fill: #0d1b2d; stroke: #34506f; stroke-width: 1.5; }
+    .verified { fill: #0e292c; stroke: #2dd4bf; stroke-width: 1.8; }
+    .unrun { fill: #32141b; stroke: #fb7185; stroke-width: 1.8; }
+    .terminal { fill: #050a12; stroke: #334155; stroke-width: 1.5; }
+    .title { fill: #f8fafc; font: 700 28px ui-sans-serif, system-ui, sans-serif; }
+    .subtitle { fill: #9fb4cb; font: 15px ui-sans-serif, system-ui, sans-serif; }
+    .section { fill: #e8f0fa; font: 700 17px ui-sans-serif, system-ui, sans-serif; }
+    .body { fill: #c8d6e7; font: 14px ui-sans-serif, system-ui, sans-serif; }
+    .small { fill: #9fb4cb; font: 12.5px ui-sans-serif, system-ui, sans-serif; }
+    .mono { fill: #d7e3f1; font: 14px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .mono-small { fill: #bed0e3; font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .hash { fill: #7dd3fc; font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .verified-text { fill: #5eead4; font: 800 14px ui-sans-serif, system-ui, sans-serif; }
+    .unrun-text { fill: #fda4af; font: 800 14px ui-sans-serif, system-ui, sans-serif; }
+    .number { fill: #f8fafc; font: 800 28px ui-sans-serif, system-ui, sans-serif; }
+    .threshold { fill: #f8fafc; font: 800 21px ui-sans-serif, system-ui, sans-serif; }
+    .command { fill: #86efac; font: 14px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .arrow { stroke: #6684a5; stroke-width: 2; }
+    .dashed { stroke-dasharray: 7 6; }
+    .arrow-head { fill: #6684a5; }
+  </style>
+  <rect class="bg" width="1400" height="782" rx="18"/>
+  <text x="48" y="58" class="title" text-anchor="start">Canonical holdout plan integrity</text>
+  <text x="48" y="86" class="subtitle" text-anchor="start">Validated protocol → fixed pair order → immutable bytes → one digest</text>
+  <rect x="48" y="120" width="300" height="190" rx="14" class="verified"/>
+  <text x="70" y="154" class="verified-text" text-anchor="start">VALIDATED PROTOCOL</text>
+  <text x="70" y="187" class="body" text-anchor="start">frozen-unrun</text>
+  <text x="70" y="216" class="mono-small" text-anchor="start">queue-saturation-paired-holdout-v1</text>
+  <text x="70" y="238" class="small" text-anchor="start">semantic SHA-256</text>
+  <text x="70" y="262" class="hash" text-anchor="start">af596b4bc5f0c7ae192d87271521d2ee</text>
+  <text x="70" y="284" class="hash" text-anchor="start">d4c4bdd35bc0c200af1e5333d4107427</text>
+  <line x1="348" y1="214" x2="380" y2="214" class="arrow"/><path d="M380,207 L394,214 L380,221 Z" class="arrow-head"/>
+  <rect x="394" y="120" width="342" height="190" rx="14" class="panel"/>
+  <text x="416" y="154" class="section" text-anchor="start">DETERMINISTIC MATERIALIZATION</text>
+  <text x="416" y="190" class="number" text-anchor="start">128 ordered pairs</text>
+  <text x="416" y="226" class="body" text-anchor="start">256 required rows</text>
+  <text x="416" y="256" class="body" text-anchor="start">incident → control for every pair</text>
+  <text x="416" y="284" class="small" text-anchor="start">no outcome-dependent reordering</text>
+  <line x1="736" y1="214" x2="768" y2="214" class="arrow"/><path d="M768,207 L782,214 L768,221 Z" class="arrow-head"/>
+  <rect x="782" y="120" width="248" height="190" rx="14" class="panel"/>
+  <text x="804" y="154" class="section" text-anchor="start">CANONICAL ASCII</text>
+  <text x="804" y="202" class="number" text-anchor="start">21,980</text>
+  <text x="804" y="232" class="body" text-anchor="start">exact bytes</text>
+  <text x="804" y="266" class="small" text-anchor="start">sorted keys</text>
+  <text x="804" y="288" class="small" text-anchor="start">compact · no newline</text>
+  <line x1="1030" y1="214" x2="1062" y2="214" class="arrow"/><path d="M1062,207 L1076,214 L1062,221 Z" class="arrow-head"/>
+  <rect x="1076" y="120" width="276" height="190" rx="14" class="verified"/>
+  <text x="1098" y="154" class="verified-text" text-anchor="start">BOUND PLAN</text>
+  <text x="1098" y="190" class="body" text-anchor="start">SHA-256</text>
+  <text x="1098" y="220" class="hash" text-anchor="start">958c683c9ef0591c033a231d899de211</text>
+  <text x="1098" y="244" class="hash" text-anchor="start">d05802b58990745b3a1ad68ce030cea9</text>
+  <text x="1098" y="280" class="small" text-anchor="start">seed values not rendered</text>
+  <text x="48" y="356" class="section" text-anchor="start">Exact row topology</text>
+  <rect x="48" y="382" width="1304" height="230" rx="14" class="panel"/>
+  <text x="76" y="419" class="small" text-anchor="start">PAIR</text>
+  <text x="250" y="419" class="small" text-anchor="start">INCIDENT ROW</text>
+  <text x="760" y="419" class="small" text-anchor="start">CONTROL ROW</text>
+  <text x="76" y="466" class="number" text-anchor="start">0</text>
+  <rect x="220" y="440" width="430" height="52" rx="9" class="unrun"/>
+  <text x="242" y="473" class="unrun-text" text-anchor="start">row 0 · incident · identity bound</text>
+  <line x1="650" y1="466" x2="702" y2="466" class="arrow dashed"/><path d="M702,459 L716,466 L702,473 Z" class="arrow-head"/>
+  <rect x="716" y="440" width="430" height="52" rx="9" class="verified"/>
+  <text x="738" y="473" class="verified-text" text-anchor="start">row 1 · control · same pair identity</text>
+  <text x="76" y="529" class="number" text-anchor="start">...</text>
+  <text x="250" y="529" class="body" text-anchor="start">all intermediate pairs preserve the same two-row order</text>
+  <text x="76" y="584" class="number" text-anchor="start">127</text>
+  <rect x="220" y="552" width="430" height="52" rx="9" class="unrun"/>
+  <text x="242" y="585" class="unrun-text" text-anchor="start">row 254 · incident · identity bound</text>
+  <line x1="650" y1="578" x2="702" y2="578" class="arrow dashed"/><path d="M702,571 L716,578 L702,585 Z" class="arrow-head"/>
+  <rect x="716" y="552" width="430" height="52" rx="9" class="verified"/>
+  <text x="738" y="585" class="verified-text" text-anchor="start">row 255 · control · same pair identity</text>
+  <rect x="48" y="646" width="1304" height="88" rx="14" class="unrun"/>
+  <text x="70" y="680" class="unrun-text" text-anchor="start">FROZEN · UNRUN · NO RESULTS</text>
+  <text x="70" y="708" class="body" text-anchor="start">This diagram renders plan metadata only; canonical row seed identities remain machine-only.</text>
+</svg>
