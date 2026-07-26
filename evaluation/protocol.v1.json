@@ -1,0 +1,76 @@
+{
+  "acceptance_counts": {
+    "maximum_control_false_alarms": 12,
+    "maximum_incident_pre_onset_false_alarms": 12,
+    "minimum_incident_detections": 116,
+    "minimum_timely_root_localizations": 96
+  },
+  "decision_rules": {
+    "control_false_alarm_window": {
+      "end_inclusive": 359,
+      "start_inclusive": 200
+    },
+    "maximum_detection_delay_samples": 40,
+    "incident_detection": "any_local_alarm_with_delay_0_through_maximum_inclusive",
+    "incident_pre_onset_false_alarm_window": {
+      "end_inclusive": 219,
+      "start_inclusive": 200
+    },
+    "timely_root_localization": "rank_1_injected_root_with_alarm_delay_0_through_maximum_inclusive"
+  },
+  "format": "cowbot.evaluation_protocol.v1",
+  "monitor_config": {
+    "alarm_wealth": 100.0,
+    "betting_epsilon": 0.5,
+    "calibration_end": 200,
+    "fit_end": 120,
+    "ridge": 1e-06
+  },
+  "protocol_id": "queue-saturation-paired-holdout-v1",
+  "reporting": {
+    "aggregate_order": [
+      "incident_detection",
+      "timely_root_localization",
+      "incident_pre_onset_false_alarm",
+      "control_false_alarm"
+    ],
+    "confidence_interval": "wilson-score-95-two-sided",
+    "misses_count_as_failures": true,
+    "per_seed_rows_required": 256,
+    "post_freeze_exclusions_allowed": false
+  },
+  "result_artifacts": {
+    "per_seed_path": "evaluation/results/per-seed.v1.ndjson",
+    "state": "absent-before-evaluation",
+    "summary_path": "evaluation/results/summary.v1.json",
+    "visual_prefix": "docs/visuals/generated/evaluation-"
+  },
+  "scenario": {
+    "control_arm": {
+      "generator": "queue_saturation_control",
+      "monitor_end_inclusive": 359,
+      "monitor_start_inclusive": 200,
+      "name": "queue-saturation-control",
+      "samples": 360
+    },
+    "incident_arm": {
+      "generator": "queue_saturation",
+      "name": "queue-saturation",
+      "onset_index": 220,
+      "root_metric": "worker_cpu",
+      "samples": 360
+    },
+    "paired_by_seed": true
+  },
+  "seed_schedule": {
+    "count": 128,
+    "derivation": "sha256-counter-first-u64-be-v1",
+    "namespace": "cowbot.queue-saturation.paired-holdout.v1",
+    "start_counter": 0
+  },
+  "status": "frozen-unrun",
+  "worked_seed_exclusions": [
+    13,
+    20260725
+  ]
+}

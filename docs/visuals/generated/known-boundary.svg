@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1210" height="800" viewBox="0 0 1210 800" role="img" aria-labelledby="svg-title svg-desc">
+  <title id="svg-title">Known deterministic boundary cases</title>
+  <desc id="svg-desc">Side-by-side alarm timelines for the default seed, which ranks the injected worker CPU root, and seed 13, which ranks queue depth early.</desc>
+  <style>
+    .bg { fill: #07111f; }
+    .panel { fill: #0d1b2d; stroke: #263b55; stroke-width: 1; }
+    .title { fill: #f8fafc; font: 700 28px ui-sans-serif, system-ui, sans-serif; }
+    .subtitle { fill: #9fb2ca; font: 15px ui-sans-serif, system-ui, sans-serif; }
+    .label { fill: #dce7f5; font: 600 14px ui-sans-serif, system-ui, sans-serif; }
+    .small { fill: #9fb2ca; font: 12px ui-sans-serif, system-ui, sans-serif; }
+    .mono { fill: #d8e5f5; font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .grid { stroke: #263b55; stroke-width: 1; }
+    .muted { stroke: #66809f; stroke-width: 1.5; }
+  </style>
+  <rect class="bg" width="1210" height="800" rx="18"/>
+  <text x="45" y="55" class="title">One worked success and one retained counterexample</text>
+  <text x="45" y="84" class="subtitle">Same method and onset, different deterministic seeds. This is a boundary check, not a benchmark.</text>
+  <rect x="45" y="125" width="540" height="535" rx="14" class="panel"/>
+  <text x="70" y="165" class="label">default worked example</text>
+  <text x="70" y="190" class="small">seed 20260725 · injected onset 220</text>
+  <line x1="210" y1="226" x2="555" y2="226" class="grid"/>
+  <text x="210" y="218" class="small">200</text>
+  <text x="555" y="218" class="small" text-anchor="end">250</text>
+  <line x1="348.00" y1="211" x2="348.00" y2="485" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="70" y="265" class="small">request rate</text>
+  <line x1="210" y1="260" x2="555" y2="260" class="grid"/>
+  <text x="555" y="252" class="small" text-anchor="end">no alarm</text>
+  <text x="70" y="314" class="small">worker CPU</text>
+  <line x1="210" y1="309" x2="555" y2="309" class="grid"/>
+  <circle cx="375.60" cy="309" r="6" fill="#f59e0b"/>
+  <text x="384.60" y="301" class="small">224</text>
+  <text x="70" y="363" class="small">queue depth</text>
+  <line x1="210" y1="358" x2="555" y2="358" class="grid"/>
+  <circle cx="382.50" cy="358" r="6" fill="#a78bfa"/>
+  <text x="391.50" y="350" class="small">225</text>
+  <text x="70" y="412" class="small">latency</text>
+  <line x1="210" y1="407" x2="555" y2="407" class="grid"/>
+  <circle cx="396.30" cy="407" r="6" fill="#34d399"/>
+  <text x="405.30" y="399" class="small">227</text>
+  <text x="70" y="461" class="small">error rate</text>
+  <line x1="210" y1="456" x2="555" y2="456" class="grid"/>
+  <circle cx="410.10" cy="456" r="6" fill="#fb7185"/>
+  <text x="419.10" y="448" class="small">229</text>
+  <rect x="70" y="525" width="490" height="105" rx="10" fill="#07111f" stroke="#34d399"/>
+  <text x="90" y="560" class="label">ranked worker CPU @ 224</text>
+  <text x="90" y="587" class="small" fill="#34d399">matches injected root</text>
+  <text x="90" y="612" class="small">pre-onset alarms: none</text>
+  <rect x="630" y="125" width="540" height="535" rx="14" class="panel"/>
+  <text x="655" y="165" class="label">retained counterexample</text>
+  <text x="655" y="190" class="small">seed 13 · injected onset 220</text>
+  <line x1="795" y1="226" x2="1140" y2="226" class="grid"/>
+  <text x="795" y="218" class="small">200</text>
+  <text x="1140" y="218" class="small" text-anchor="end">250</text>
+  <line x1="933.00" y1="211" x2="933.00" y2="485" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="655" y="265" class="small">request rate</text>
+  <line x1="795" y1="260" x2="1140" y2="260" class="grid"/>
+  <text x="1140" y="252" class="small" text-anchor="end">no alarm</text>
+  <text x="655" y="314" class="small">worker CPU</text>
+  <line x1="795" y1="309" x2="1140" y2="309" class="grid"/>
+  <circle cx="960.60" cy="309" r="6" fill="#f59e0b"/>
+  <text x="969.60" y="301" class="small">224</text>
+  <text x="655" y="363" class="small">queue depth</text>
+  <line x1="795" y1="358" x2="1140" y2="358" class="grid"/>
+  <circle cx="919.20" cy="358" r="6" fill="#fb7185"/>
+  <text x="928.20" y="350" class="small">218</text>
+  <text x="655" y="412" class="small">latency</text>
+  <line x1="795" y1="407" x2="1140" y2="407" class="grid"/>
+  <circle cx="988.20" cy="407" r="6" fill="#34d399"/>
+  <text x="997.20" y="399" class="small">228</text>
+  <text x="655" y="461" class="small">error rate</text>
+  <line x1="795" y1="456" x2="1140" y2="456" class="grid"/>
+  <circle cx="1112.40" cy="456" r="6" fill="#fb7185"/>
+  <text x="1121.40" y="448" class="small">246</text>
+  <rect x="655" y="525" width="490" height="105" rx="10" fill="#07111f" stroke="#fb7185"/>
+  <text x="675" y="560" class="label">ranked queue depth @ 218</text>
+  <text x="675" y="587" class="small" fill="#fb7185">does not match injected root</text>
+  <text x="675" y="612" class="small">pre-onset alarms: queue_depth</text>
+  <circle cx="63" cy="706" r="6" fill="#fb7185"/><text x="78" y="711" class="small">alarm before injected onset</text>
+  <line x1="287" y1="706" x2="313" y2="706" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 5"/><text x="324" y="711" class="small">injected onset</text>
+  <text x="45" y="760" class="subtitle">Seed 13 is kept visible: queue depth alarms before onset and ranks first. No detection-rate claim follows.</text>
+</svg>

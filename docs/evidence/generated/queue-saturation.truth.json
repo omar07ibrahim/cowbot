@@ -1,0 +1,10 @@
+{
+  "format": "cowbot.synthetic_truth.v1",
+  "mechanism": "cooling loss raises the worker CPU baseline",
+  "onset_index": 220,
+  "root_metric": "worker_cpu",
+  "samples": 360,
+  "scenario": "queue-saturation",
+  "seed": 20260725,
+  "telemetry_sha256": "19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c"
+}

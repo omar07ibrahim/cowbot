@@ -1,0 +1,115 @@
+{
+  "artifacts": [
+    {
+      "bytes": 6848,
+      "media_type": "image/svg+xml",
+      "path": "docs/harness/generated/holdout-plan-integrity.svg",
+      "sha256": "8cf5490a944f44148c82d64b3eb205507dab4003720d0729fb7ff03150a24824"
+    },
+    {
+      "bytes": 4480,
+      "media_type": "image/svg+xml",
+      "path": "docs/harness/generated/holdout-preflight-terminal.svg",
+      "sha256": "bbd663a0be4935da7e9ba62eb720c7b1823f9484cb1d7933691b459b2003e6ce"
+    },
+    {
+      "bytes": 359,
+      "media_type": "text/plain; charset=utf-8",
+      "path": "docs/harness/generated/holdout-preflight.cli.txt",
+      "sha256": "c593ec064696f2bfb49974115d3b04bd254653a750dae37dc7eb7c5801b35386"
+    },
+    {
+      "bytes": 6842,
+      "media_type": "image/svg+xml",
+      "path": "docs/harness/generated/holdout-row-contract.svg",
+      "sha256": "78e0e696bbf41baabde2ee12a8f74b2ff4b713a37cb139b3bdee56abf940c4f9"
+    }
+  ],
+  "claim_boundary": {
+    "contains_holdout_results": false,
+    "contains_holdout_seed_values": false,
+    "executor_available": false,
+    "generator_invoked_holdout_execution": false,
+    "repository_namespace_scope": "inspected repository tree only",
+    "repository_result_namespace": "unclaimed"
+  },
+  "format": "cowbot.holdout_harness_evidence_manifest.v1",
+  "generator": {
+    "path": "tools/record_holdout_harness_evidence.py",
+    "publication_order": "artifacts first, manifest last",
+    "runtime_dependencies": "Python standard library + result-free repository contracts"
+  },
+  "plan": {
+    "arm_order": [
+      "incident",
+      "control"
+    ],
+    "canonical_bytes": 21980,
+    "pair_count": 128,
+    "row_count": 256,
+    "sha256": "958c683c9ef0591c033a231d899de211d05802b58990745b3a1ad68ce030cea9"
+  },
+  "preflight_audit": {
+    "blocked_run_exit_code": 0,
+    "blocked_runtime_modules": [
+      "cowbot.monitor",
+      "cowbot.report",
+      "cowbot.scenario",
+      "cowbot.stream"
+    ],
+    "command": "python3 -m cowbot holdout-preflight --root .",
+    "exit_code": 0,
+    "repeat_count": 2,
+    "repeated_stdout_identical": true,
+    "stderr_bytes": 0,
+    "stdout_bytes": 359,
+    "stdout_sha256": "c593ec064696f2bfb49974115d3b04bd254653a750dae37dc7eb7c5801b35386"
+  },
+  "protocol": {
+    "protocol_id": "queue-saturation-paired-holdout-v1",
+    "semantic_sha256": "af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427",
+    "status": "frozen-unrun"
+  },
+  "source_inputs": [
+    {
+      "bytes": 2236,
+      "path": "evaluation/protocol.v1.json",
+      "sha256": "c3fdb141b3464eadae0140a29557d632cca87907d9c9ee465aa61b3cfe13b395"
+    },
+    {
+      "bytes": 1943,
+      "path": "cowbot/__init__.py",
+      "sha256": "f281087e3fc3d18c84ca20721ce62744a442e49a40d651431f68785b8247cb6a"
+    },
+    {
+      "bytes": 48,
+      "path": "cowbot/__main__.py",
+      "sha256": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d"
+    },
+    {
+      "bytes": 14895,
+      "path": "cowbot/cli.py",
+      "sha256": "4bb8bc51d4f45b6c54d4232bab73d70e42e641b45216c070308ae45885b1e213"
+    },
+    {
+      "bytes": 9645,
+      "path": "cowbot/contracts.py",
+      "sha256": "d96b33870e9c6214880e1fb94d826640fa71afee3bfc2ba39a0dda1c80061dd7"
+    },
+    {
+      "bytes": 24665,
+      "path": "cowbot/evaluation_protocol.py",
+      "sha256": "e40bba2f8c55015d3bee11a84c3bdd214836d7cb85ef5ddedc898c96884031ae"
+    },
+    {
+      "bytes": 27943,
+      "path": "cowbot/evaluation_harness.py",
+      "sha256": "1b920d7cdd562d15e066f4cc8ae044e5451b383eadbac6e279b503a4b43f12d4"
+    },
+    {
+      "bytes": 40640,
+      "path": "tools/record_holdout_harness_evidence.py",
+      "sha256": "dd26a81bf0f516ce1e3b57e76c56ff48fb44913870d2df9b9edf4fdda7e5d31e"
+    }
+  ]
+}

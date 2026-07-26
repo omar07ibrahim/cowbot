@@ -1,0 +1,158 @@
+{
+  "artifacts": [
+    {
+      "bytes": 82843,
+      "media_type": "application/x-ndjson",
+      "path": "docs/evidence/generated/queue-saturation.ndjson",
+      "sha256": "19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c"
+    },
+    {
+      "bytes": 321,
+      "media_type": "application/json",
+      "path": "docs/evidence/generated/queue-saturation.truth.json",
+      "sha256": "b83ac126791ed0435c650d2ed7af4e4f3883213f20c9354074652b5e4c2bf747"
+    },
+    {
+      "bytes": 346639,
+      "media_type": "application/json",
+      "path": "docs/evidence/generated/queue-saturation.report.json",
+      "sha256": "0a73e33f7d3b0d67c2d44be49bb98c34158a3773827651e1733617a5390d10b9"
+    },
+    {
+      "bytes": 2764,
+      "media_type": "text/plain",
+      "path": "docs/evidence/generated/queue-saturation.cli.txt",
+      "sha256": "d4d8f5b070cd598ee1f9e01e7582644d0a49c2be2e7c1d3a2ec7257011c05280"
+    },
+    {
+      "bytes": 3131,
+      "media_type": "application/json",
+      "path": "docs/evidence/generated/known-boundary.json",
+      "sha256": "ed6f8105fcffb5d655abbac96aaa39fe7f15cfba5a43802961367d6b89758d62"
+    },
+    {
+      "bytes": 3662,
+      "media_type": "image/svg+xml",
+      "path": "docs/visuals/generated/replay-workflow.svg",
+      "sha256": "6d30572576e3309849c0556c1b4d28a888bdc3d0c3f56625a82768d4c9c89298"
+    },
+    {
+      "bytes": 29313,
+      "media_type": "image/svg+xml",
+      "path": "docs/visuals/generated/default-telemetry.svg",
+      "sha256": "be2264592d8496fc14a0c63bc36ca18478121ce6fb48a0ec79dfed4c6b170831"
+    },
+    {
+      "bytes": 16090,
+      "media_type": "image/svg+xml",
+      "path": "docs/visuals/generated/default-power-wealth.svg",
+      "sha256": "412aa24a90ef74e48e9f81f2a96681342e0097e532d3002bc7a0ccb3baf51cce"
+    },
+    {
+      "bytes": 4955,
+      "media_type": "image/svg+xml",
+      "path": "docs/visuals/generated/default-triage.svg",
+      "sha256": "a56a9b497b623244926ae31635f3ed058ff326c4976ca6723ebc459757e5a514"
+    },
+    {
+      "bytes": 5518,
+      "media_type": "image/svg+xml",
+      "path": "docs/visuals/generated/known-boundary.svg",
+      "sha256": "c35adf55299e60becd73fe54bfd3b9d7d885509897c588e57fd5d4b4c7ee79aa"
+    },
+    {
+      "bytes": 7228,
+      "media_type": "image/svg+xml",
+      "path": "docs/visuals/generated/cli-session.svg",
+      "sha256": "bcc420100b5642b302932c2e1e554877357c8eb5a6e7e5778600c3fad3c9eee0"
+    }
+  ],
+  "format": "cowbot.evidence_manifest.v1",
+  "generator": {
+    "path": "tools/record_evidence.py",
+    "runtime_dependencies": "Python standard library only"
+  },
+  "publication": {
+    "check": "regenerate in an exclusive ignored build directory and compare every byte",
+    "strategy": "allowlist inventory preflight; atomic per-file replacement with rollback; failed-restoration backups retained; manifest last"
+  },
+  "scenario": {
+    "default_seed": 20260725,
+    "name": "queue-saturation",
+    "onset_index": 220,
+    "retained_boundary_seed": 13,
+    "samples": 360
+  },
+  "source_inputs": [
+    {
+      "bytes": 874,
+      "path": "Makefile",
+      "sha256": "f79e47d15714376cf1c2f58ac44d8ff5f8d7eedc696da74fbdb71f01e41a69d4"
+    },
+    {
+      "bytes": 429,
+      "path": "pyproject.toml",
+      "sha256": "952199f03b28b7c729c71575d6b9b9798b8663ae30cecc0ab91dd0767948ec82"
+    },
+    {
+      "bytes": 1943,
+      "path": "cowbot/__init__.py",
+      "sha256": "f281087e3fc3d18c84ca20721ce62744a442e49a40d651431f68785b8247cb6a"
+    },
+    {
+      "bytes": 48,
+      "path": "cowbot/__main__.py",
+      "sha256": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d"
+    },
+    {
+      "bytes": 3011,
+      "path": "cowbot/_numeric.py",
+      "sha256": "1868bfecaac5a9ef341c1cda2f87e97752cb145d59d9fee9b5c5d4050bed0b76"
+    },
+    {
+      "bytes": 14895,
+      "path": "cowbot/cli.py",
+      "sha256": "4bb8bc51d4f45b6c54d4232bab73d70e42e641b45216c070308ae45885b1e213"
+    },
+    {
+      "bytes": 9645,
+      "path": "cowbot/contracts.py",
+      "sha256": "d96b33870e9c6214880e1fb94d826640fa71afee3bfc2ba39a0dda1c80061dd7"
+    },
+    {
+      "bytes": 14039,
+      "path": "cowbot/linalg.py",
+      "sha256": "43b454f2d20e96a21b8f43b94587e0dc98d34cc72d497711039798c37eda78ba"
+    },
+    {
+      "bytes": 23997,
+      "path": "cowbot/monitor.py",
+      "sha256": "9ab73c4a55020d1e796318fb5999327ea603ae20c17f89a33fc7e1f999f0253b"
+    },
+    {
+      "bytes": 14985,
+      "path": "cowbot/report.py",
+      "sha256": "008b8009add8ef560f4a4b803df9eb857606d403dee386daabc74ec149529ae2"
+    },
+    {
+      "bytes": 5597,
+      "path": "cowbot/scenario.py",
+      "sha256": "7bd975754c96ab2b01034555957ab976fb198a009fe789fe58c115e6a43be2f6"
+    },
+    {
+      "bytes": 12097,
+      "path": "cowbot/stream.py",
+      "sha256": "292366eb23585dc51924d9eb542de33c382b3777cc38b7cbcd82f9a7b749936f"
+    },
+    {
+      "bytes": 8805,
+      "path": "docs/method.md",
+      "sha256": "3279af76b54f59cc9211e129ae0d2300cd4b07ec460a0317955af6d5ab31cb1c"
+    },
+    {
+      "bytes": 62814,
+      "path": "tools/record_evidence.py",
+      "sha256": "5ab7fb4c2c973d2832e2f2ca28a8282d1452faf3d1da42f4e4916310a835d749"
+    }
+  ]
+}

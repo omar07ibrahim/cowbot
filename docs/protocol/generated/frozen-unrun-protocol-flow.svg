@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1068" viewBox="0 0 1400 1068" role="img" aria-labelledby="protocol-title protocol-desc">
+  <title id="protocol-title">COWBOT frozen paired holdout protocol</title>
+  <desc id="protocol-desc">A source-derived pre-registration diagram marked frozen, unrun, and no results. It shows 128 paired seeds, 256 required rows, two worked-seed exclusions, incident and control windows, four endpoint thresholds, and the exact semantic protocol hash.</desc>
+  <style>
+    .bg { fill: #07111f; }
+    .panel { fill: #0d1b2d; stroke: #2c415d; stroke-width: 1.5; }
+    .incident-panel { fill: #171c2e; stroke: #a78bfa; stroke-width: 1.5; }
+    .control-panel { fill: #10242a; stroke: #2dd4bf; stroke-width: 1.5; }
+    .unrun-panel { fill: #32141b; stroke: #fb7185; stroke-width: 2; }
+    .footer-panel { fill: #132032; stroke: #486581; stroke-width: 1.5; }
+    .fit-segment { fill: #123450; }
+    .calibration-segment { fill: #392756; }
+    .monitor-segment { fill: #173d3d; }
+    .title { fill: #f8fafc; font: 700 28px ui-sans-serif, system-ui, sans-serif; }
+    .subtitle { fill: #a9bdd4; font: 15px ui-sans-serif, system-ui, sans-serif; }
+    .section { fill: #e5edf8; font: 700 16px ui-sans-serif, system-ui, sans-serif; }
+    .card-title { fill: #f1f5f9; font: 700 17px ui-sans-serif, system-ui, sans-serif; }
+    .small { fill: #c6d4e5; font: 14px ui-sans-serif, system-ui, sans-serif; }
+    .muted { fill: #8da5bf; font: 13px ui-sans-serif, system-ui, sans-serif; }
+    .mono { fill: #c8d9ed; font: 14px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .mono-small { fill: #c8d9ed; font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .tiny-mono { fill: #91a9c4; font: 10.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .hash { fill: #7dd3fc; font: 13.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .large-number { fill: #f8fafc; font: 800 30px ui-sans-serif, system-ui, sans-serif; }
+    .guardrail { fill: #fda4af; font: 700 13px ui-sans-serif, system-ui, sans-serif; }
+    .window { fill: #f1f5f9; font: 650 14px ui-sans-serif, system-ui, sans-serif; }
+    .incident-title { fill: #c4b5fd; font: 800 14px ui-sans-serif, system-ui, sans-serif; }
+    .control-title { fill: #5eead4; font: 800 14px ui-sans-serif, system-ui, sans-serif; }
+    .threshold { fill: #f8fafc; font: 800 24px ui-sans-serif, system-ui, sans-serif; }
+    .timeline { fill: #eef2ff; font: 700 14px ui-sans-serif, system-ui, sans-serif; }
+    .unrun { fill: #fecdd3; font: 900 30px ui-sans-serif, system-ui, sans-serif; letter-spacing: 1.8px; }
+    .unrun-note { fill: #fda4af; font: 650 14px ui-sans-serif, system-ui, sans-serif; }
+    .unrun-footer { fill: #fb7185; font: 900 22px ui-sans-serif, system-ui, sans-serif; }
+    .footer { fill: #c6d4e5; font: 14px ui-sans-serif, system-ui, sans-serif; }
+    .footer-strong { fill: #fecdd3; font: 700 14px ui-sans-serif, system-ui, sans-serif; }
+    .arrow-line { stroke: #6883a3; stroke-width: 2; }
+    .arrow-head { fill: #6883a3; }
+  </style>
+  <rect class="bg" width="1400" height="1068" rx="18"/>
+  <text x="48" y="58" class="title" text-anchor="start">Paired holdout protocol · architecture before execution</text>
+  <text x="48" y="88" class="subtitle" text-anchor="start">Source-derived from the strict, committed protocol contract; no scenario output is read.</text>
+  <rect x="48" y="112" width="1304" height="86" rx="14" class="unrun-panel"/>
+  <text x="700" y="153" class="unrun" text-anchor="middle">FROZEN · UNRUN · NO RESULTS</text>
+  <text x="700" y="179" class="unrun-note" text-anchor="middle">Pre-registration and workflow architecture only — zero measured outcomes</text>
+  <text x="48" y="232" class="mono" text-anchor="start">protocol  queue-saturation-paired-holdout-v1</text>
+  <text x="48" y="258" class="hash" text-anchor="start">semantic SHA-256  af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427</text>
+  <text x="48" y="296" class="section" text-anchor="start">1 · deterministic seed schedule</text>
+  <rect x="48" y="318" width="300" height="190" rx="12" class="panel"/>
+  <text x="68" y="351" class="card-title" text-anchor="start">128 ordered u64 seeds</text>
+  <text x="68" y="381" class="mono-small" text-anchor="start">sha256-counter-first-u64-be-v1</text>
+  <text x="68" y="410" class="muted" text-anchor="start">namespace:</text>
+  <text x="68" y="432" class="tiny-mono" text-anchor="start">cowbot.queue-saturation.paired-holdout.v1</text>
+  <text x="68" y="466" class="small" text-anchor="start">worked exclusions: 13, 20260725</text>
+  <text x="68" y="489" class="guardrail" text-anchor="start">no outcome-dependent resampling</text>
+  <line x1="348" y1="413" x2="374" y2="413" class="arrow-line"/>
+  <path d="M374,406 L386,413 L374,420 Z" class="arrow-head"/>
+  <text x="386" y="296" class="section" text-anchor="start">2 · pair by seed</text>
+  <rect x="386" y="318" width="286" height="190" rx="12" class="panel"/>
+  <text x="529" y="356" class="large-number" text-anchor="middle">128 pairs</text>
+  <text x="529" y="387" class="card-title" text-anchor="middle">256 required seed-arm rows</text>
+  <text x="529" y="423" class="small" text-anchor="middle">same seed → incident + control</text>
+  <text x="529" y="452" class="guardrail" text-anchor="middle">missing / invalid / exception = failure</text>
+  <text x="529" y="478" class="guardrail" text-anchor="middle">post-freeze exclusions forbidden</text>
+  <line x1="672" y1="413" x2="698" y2="413" class="arrow-line"/>
+  <path d="M698,406 L710,413 L698,420 Z" class="arrow-head"/>
+  <text x="710" y="296" class="section" text-anchor="start">3 · execute paired arms later</text>
+  <rect x="710" y="318" width="304" height="190" rx="12" class="incident-panel"/>
+  <text x="730" y="351" class="incident-title" text-anchor="start">INCIDENT ARM</text>
+  <text x="730" y="379" class="small" text-anchor="start">queue-saturation · 360 samples</text>
+  <text x="730" y="406" class="small" text-anchor="start">onset 220 · injected root worker_cpu</text>
+  <text x="730" y="436" class="window" text-anchor="start">detection / root window  220–260</text>
+  <text x="730" y="464" class="window" text-anchor="start">pre-onset false-alarm window  200–219</text>
+  <text x="730" y="489" class="muted" text-anchor="start">generator not executed by this renderer</text>
+  <rect x="1034" y="318" width="318" height="190" rx="12" class="control-panel"/>
+  <text x="1054" y="351" class="control-title" text-anchor="start">CONTROL ARM</text>
+  <text x="1054" y="379" class="small" text-anchor="start">queue-saturation-control · 360 samples</text>
+  <text x="1054" y="406" class="small" text-anchor="start">no injected incident</text>
+  <text x="1054" y="436" class="window" text-anchor="start">false-alarm window  200–359</text>
+  <text x="1054" y="464" class="small" text-anchor="start">paired with the incident seed</text>
+  <text x="1054" y="489" class="muted" text-anchor="start">generator not implemented / not run here</text>
+  <text x="48" y="554" class="section" text-anchor="start">Frozen monitor partitions</text>
+  <rect x="48" y="575" width="1304" height="128" rx="12" class="panel"/>
+  <rect x="72" y="613" width="405" height="42" rx="8" class="fit-segment"/>
+  <rect x="477" y="613" width="270" height="42" rx="8" class="calibration-segment"/>
+  <rect x="747" y="613" width="581" height="42" rx="8" class="monitor-segment"/>
+  <text x="274" y="640" class="timeline" text-anchor="middle">fit targets  &lt; 120</text>
+  <text x="612" y="640" class="timeline" text-anchor="middle">calibration  120–199</text>
+  <text x="1038" y="640" class="timeline" text-anchor="middle">monitoring  200–359</text>
+  <text x="72" y="684" class="small" text-anchor="start">ridge 1e-06 · betting epsilon 0.5 · alarm wealth 100</text>
+  <text x="48" y="750" class="section" text-anchor="start">4 · four exact endpoints and frozen acceptance counts</text>
+  <rect x="48" y="774" width="308" height="128" rx="12" class="incident-panel"/>
+  <text x="66" y="807" class="incident-title" text-anchor="start">INCIDENT DETECTION</text>
+  <text x="66" y="837" class="small" text-anchor="start">alarm in 220–260</text>
+  <text x="66" y="880" class="threshold" text-anchor="start">≥ 116 / 128</text>
+  <rect x="380" y="774" width="308" height="128" rx="12" class="incident-panel"/>
+  <text x="398" y="807" class="incident-title" text-anchor="start">TIMELY ROOT LOCALIZATION</text>
+  <text x="398" y="837" class="small" text-anchor="start">rank 1 = worker_cpu</text>
+  <text x="398" y="880" class="threshold" text-anchor="start">≥ 96 / 128</text>
+  <rect x="712" y="774" width="308" height="128" rx="12" class="control-panel"/>
+  <text x="730" y="807" class="control-title" text-anchor="start">INCIDENT PRE-ONSET FA</text>
+  <text x="730" y="837" class="small" text-anchor="start">alarm in 200–219</text>
+  <text x="730" y="880" class="threshold" text-anchor="start">≤ 12 / 128</text>
+  <rect x="1044" y="774" width="308" height="128" rx="12" class="control-panel"/>
+  <text x="1062" y="807" class="control-title" text-anchor="start">CONTROL FALSE ALARM</text>
+  <text x="1062" y="837" class="small" text-anchor="start">alarm in 200–359</text>
+  <text x="1062" y="880" class="threshold" text-anchor="start">≤ 12 / 128</text>
+  <rect x="48" y="928" width="1304" height="92" rx="12" class="footer-panel"/>
+  <text x="70" y="962" class="footer" text-anchor="start">Denominator is always 128 paired seeds · Wilson 95% intervals are required later</text>
+  <text x="70" y="991" class="footer-strong" text-anchor="start">This figure contains architecture and thresholds only. It does not claim that any endpoint passed.</text>
+  <text x="1330" y="991" class="unrun-footer" text-anchor="end">UNRUN</text>
+</svg>

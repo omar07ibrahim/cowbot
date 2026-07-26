@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1220" height="690" viewBox="0 0 1220 690" role="img" aria-labelledby="svg-title svg-desc">
+  <title id="svg-title">COWBOT replay evidence workflow</title>
+  <desc id="svg-desc">A five-stage workflow from simulation through report generation, telemetry-only analysis, post-report truth digest verification, and atomic evidence publication.</desc>
+  <style>
+    .bg { fill: #07111f; }
+    .panel { fill: #0d1b2d; stroke: #263b55; stroke-width: 1; }
+    .title { fill: #f8fafc; font: 700 28px ui-sans-serif, system-ui, sans-serif; }
+    .subtitle { fill: #9fb2ca; font: 15px ui-sans-serif, system-ui, sans-serif; }
+    .label { fill: #dce7f5; font: 600 14px ui-sans-serif, system-ui, sans-serif; }
+    .small { fill: #9fb2ca; font: 12px ui-sans-serif, system-ui, sans-serif; }
+    .mono { fill: #d8e5f5; font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .grid { stroke: #263b55; stroke-width: 1; }
+    .muted { stroke: #66809f; stroke-width: 1.5; }
+  </style>
+  <rect class="bg" width="1220" height="690" rx="18"/>
+  <text x="55" y="65" class="title">Replay evidence has a one-way truth boundary</text>
+  <text x="55" y="94" class="subtitle">Analyze runs in a telemetry-only directory; synthetic truth joins only after the report exists.</text>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#66809f"/></marker></defs>
+  <rect x="55" y="190" width="190" height="90" rx="12" class="panel"/>
+  <text x="73" y="227" class="label">1 · simulate</text>
+  <text x="73" y="254" class="small">telemetry + sealed truth</text>
+  <rect x="285" y="190" width="190" height="90" rx="12" class="panel"/>
+  <text x="303" y="227" class="label">2 · analyze</text>
+  <text x="303" y="254" class="small">telemetry only</text>
+  <path d="M245,235 H275" class="muted" fill="none" marker-end="url(#arrow)"/>
+  <rect x="515" y="190" width="190" height="90" rx="12" class="panel"/>
+  <text x="533" y="227" class="label">3 · report</text>
+  <text x="533" y="254" class="small">models + every score</text>
+  <path d="M475,235 H505" class="muted" fill="none" marker-end="url(#arrow)"/>
+  <rect x="745" y="190" width="190" height="90" rx="12" class="panel"/>
+  <text x="763" y="227" class="label">4 · verify</text>
+  <text x="763" y="254" class="small">digests after report</text>
+  <path d="M705,235 H735" class="muted" fill="none" marker-end="url(#arrow)"/>
+  <rect x="975" y="190" width="190" height="90" rx="12" class="panel"/>
+  <text x="993" y="227" class="label">5 · publish</text>
+  <text x="993" y="254" class="small">evidence + six SVGs</text>
+  <path d="M935,235 H965" class="muted" fill="none" marker-end="url(#arrow)"/>
+  <rect x="285" y="380" width="190" height="82" rx="12" fill="#251a10" stroke="#f59e0b"/>
+  <text x="303" y="413" class="label">sealed truth</text>
+  <text x="303" y="439" class="small">onset 220 · worker_cpu</text>
+  <path d="M380,380 V335 H840 V290" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#arrow)"/>
+  <text x="515" y="326" class="small">truth absent from analyze cwd, arguments, and environment</text>
+  <rect x="55" y="530" width="1110" height="104" rx="12" class="panel"/>
+  <text x="77" y="566" class="label">Reproducible contract</text>
+  <text x="77" y="594" class="subtitle">Fixed seed + bounded stream → canonical report → truth digest gate → source-derived figures → hash manifest</text>
+  <text x="77" y="619" class="small">--check repeats this workflow in an exclusive ignored build directory and performs byte-for-byte comparison.</text>
+</svg>

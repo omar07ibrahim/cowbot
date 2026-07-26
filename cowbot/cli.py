@@ -8,12 +8,14 @@ import json
 import os
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
+from typing import TYPE_CHECKING
 
 from .contracts import ValidationError
-from .scenario import queue_saturation
-from .stream import read_stream, write_path
+
+if TYPE_CHECKING:
+    from .monitor import MonitorReport
 
 
 def _sha256_path(path: Path) -> str:
@@ -27,7 +29,7 @@ def _sha256_path(path: Path) -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cowbot",
-        description="Replayable causal triage for multivariate telemetry.",
+        description="Graph-informed replayable triage for telemetry.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -47,6 +49,25 @@ def _parser() -> argparse.ArgumentParser:
         help="validate and summarize a telemetry stream",
     )
     inspect.add_argument("stream", type=Path)
+
+    analyze = subparsers.add_parser(
+        "analyze",
+        help="run calibrated monitoring and write a canonical report",
+    )
+    analyze.add_argument("stream", type=Path)
+    analyze.add_argument("--output", type=Path, required=True)
+    analyze.add_argument("--fit-end", type=int, default=120)
+    analyze.add_argument("--calibration-end", type=int, default=200)
+    analyze.add_argument("--ridge", type=float, default=1e-6)
+    analyze.add_argument("--betting-epsilon", type=float, default=0.5)
+    analyze.add_argument("--alarm-wealth", type=float, default=100.0)
+    analyze.add_argument("--overwrite", action="store_true")
+
+    holdout_preflight = subparsers.add_parser(
+        "holdout-preflight",
+        help="verify the frozen holdout plan without running it",
+    )
+    holdout_preflight.add_argument("--root", type=Path, required=True)
     return parser
 
 
@@ -84,8 +105,7 @@ def _write_truth(path: Path, payload: dict[str, object], *, overwrite: bool) -> 
                 os.link(temporary_path, path)
             except FileExistsError as error:
                 raise ValidationError(
-                    f"refusing to overwrite {path}; "
-                    "pass --overwrite explicitly"
+                    f"refusing to overwrite {path}; pass --overwrite explicitly"
                 ) from error
             temporary_path.unlink()
     finally:
@@ -103,8 +123,7 @@ def _preflight_outputs(paths: Sequence[Path], *, overwrite: bool) -> None:
     ]
     if unsafe:
         raise ValidationError(
-            "output paths must be absent or regular files: "
-            + ", ".join(sorted(unsafe))
+            "output paths must be absent or regular files: " + ", ".join(sorted(unsafe))
         )
     if not overwrite:
         existing = [str(path) for path in paths if path.exists()]
@@ -192,9 +211,7 @@ def _publish_staged(
                             f"{backup} ({type(rollback_error).__name__})"
                         )
             if recovery_notes:
-                detail = "; manual recovery required: " + ", ".join(
-                    recovery_notes
-                )
+                detail = "; manual recovery required: " + ", ".join(recovery_notes)
             else:
                 detail = "; previous outputs restored"
             raise ValidationError("output publication failed" + detail) from error
@@ -204,14 +221,14 @@ def _publish_staged(
                     backup.unlink(missing_ok=True)
         return
 
-    published: list[Path] = []
+    linked: list[Path] = []
     try:
         for source, destination in staged:
             _link_path(source, destination)
-            published.append(destination)
+            linked.append(destination)
     except OSError as error:
         rollback_failures: list[str] = []
-        for destination in published:
+        for destination in linked:
             try:
                 _remove_path(destination)
             except OSError as rollback_error:
@@ -219,15 +236,16 @@ def _publish_staged(
                     f"{destination} ({type(rollback_error).__name__})"
                 )
         if rollback_failures:
-            detail = "; partial output remains: " + ", ".join(
-                rollback_failures
-            )
+            detail = "; partial output remains: " + ", ".join(rollback_failures)
         else:
             detail = "; no new output was kept"
         raise ValidationError("output publication failed" + detail) from error
 
 
 def _simulate(arguments: argparse.Namespace) -> int:
+    from .scenario import queue_saturation
+    from .stream import write_path
+
     _preflight_outputs(
         (arguments.output, arguments.truth_output),
         overwrite=arguments.overwrite,
@@ -290,6 +308,8 @@ def _simulate(arguments: argparse.Namespace) -> int:
 
 
 def _inspect(arguments: argparse.Namespace) -> int:
+    from .stream import read_stream
+
     digest = _sha256_path(arguments.stream)
     with arguments.stream.open("r", encoding="utf-8") as source:
         schema, sample_iterator = read_stream(source)
@@ -310,6 +330,105 @@ def _inspect(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _print_report_summary(
+    monitor_report: MonitorReport,
+    *,
+    sample_count: int,
+    telemetry_sha256: str,
+    payload_sha256: str,
+) -> None:
+    config = monitor_report.config
+    print("COWBOT replay analysis")
+    print(f"telemetry sha256  {telemetry_sha256}")
+    print(
+        "partitions        "
+        f"fit target end {config.fit_end} (lag-dependent starts) | "
+        f"calibration {config.fit_end}:{config.calibration_end} | "
+        f"monitor {config.calibration_end}:{sample_count}"
+    )
+    print()
+    print("metric             alarm   peak log-wealth   triage")
+    suppressed = {
+        candidate.metric for candidate in monitor_report.suppressed_candidates
+    }
+    origins = {candidate.metric for candidate in monitor_report.root_candidates}
+    for summary in monitor_report.node_summaries:
+        alarm = "none" if summary.alarm_index is None else str(summary.alarm_index)
+        if summary.metric in origins:
+            triage = "origin candidate"
+        elif summary.metric in suppressed:
+            triage = "suppressed candidate"
+        else:
+            triage = "no alarm"
+        print(
+            f"{summary.metric:<18} "
+            f"{alarm:>5}   "
+            f"{summary.peak_log_power_wealth:>15.3f}   "
+            f"{triage}"
+        )
+    print()
+    if monitor_report.root_candidate is None:
+        print("ranked candidate   none")
+    else:
+        candidate = monitor_report.root_candidate
+        print(
+            "ranked candidate   "
+            f"{candidate.metric} @ {candidate.alarm_index} "
+            f"({candidate.downstream_alarm_count} compatible "
+            "downstream alarms)"
+        )
+    print(f"report sha256     {payload_sha256}")
+    print("claim boundary    retrospective predictor-failure triage; not causal proof")
+
+
+def _analyze(arguments: argparse.Namespace) -> int:
+    from .monitor import MonitorConfig
+    from .report import prepare_report_path, publish_report_path
+
+    try:
+        stream_path = arguments.stream.resolve()
+        output_path = arguments.output.resolve()
+    except RuntimeError as error:
+        raise ValidationError(
+            "stream and report paths must resolve without symlink loops"
+        ) from error
+    if stream_path == output_path:
+        raise ValidationError("stream and report output paths must be different")
+    _preflight_outputs((arguments.output,), overwrite=arguments.overwrite)
+    config = MonitorConfig(
+        fit_end=arguments.fit_end,
+        calibration_end=arguments.calibration_end,
+        ridge=arguments.ridge,
+        betting_epsilon=arguments.betting_epsilon,
+        alarm_wealth=arguments.alarm_wealth,
+    )
+    prepared = prepare_report_path(arguments.stream, config=config)
+    publish_report_path(
+        arguments.output,
+        prepared,
+        overwrite=arguments.overwrite,
+    )
+    _print_report_summary(
+        prepared.monitor,
+        sample_count=prepared.sample_count,
+        telemetry_sha256=prepared.telemetry_sha256,
+        payload_sha256=prepared.sha256,
+    )
+    return 0
+
+
+def _holdout_preflight(arguments: argparse.Namespace) -> int:
+    from .evaluation_harness import preflight_holdout
+    from .evaluation_protocol import ProtocolError
+
+    try:
+        preflight = preflight_holdout(arguments.root)
+    except ProtocolError as error:
+        raise ValidationError(str(error)) from None
+    sys.stdout.write(preflight.to_json())
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     try:
@@ -318,6 +437,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _simulate(arguments)
         if arguments.command == "inspect":
             return _inspect(arguments)
+        if arguments.command == "analyze":
+            return _analyze(arguments)
+        if arguments.command == "holdout-preflight":
+            return _holdout_preflight(arguments)
         parser.error(f"unsupported command {arguments.command!r}")
     except (OSError, ValidationError) as error:
         print(f"cowbot: error: {error}", file=sys.stderr)

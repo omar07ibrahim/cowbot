@@ -1,48 +1,246 @@
 # COWBOT
 
-COWBOT is a causal online watchdog for multivariate service telemetry. The
-project is being built around one inspectable vertical slice: replay a bounded
-stream, detect a local mechanism change, and distinguish its likely origin from
-downstream symptoms using an operator-supplied dependency graph.
+COWBOT is a graph-informed, replayable mechanism watchdog for multivariate
+service telemetry. It fits one small local predictor per metric, calibrates
+residual ranks on a disjoint healthy partition, accumulates sequential
+evidence, and uses an operator-supplied lag graph to separate a plausible
+origin from downstream symptoms.
 
-The current first slice provides only the deterministic telemetry contract and
-incident simulator. Detection, evidence accumulation, root-cause ranking, and
-the visual replay report are intentionally not claimed yet.
+The repository is an inspectable systems slice, not a dashboard mockup:
+simulation, stream contracts, bounded analysis, canonical reports, exact CLI
+captures, and every figure below are executable and byte-reproducible.
 
-## Reproduce the current slice
+![Replay evidence workflow](docs/visuals/generated/replay-workflow.svg)
+
+*The recorder runs each analyzer in a fresh directory whose exact inventory is
+the telemetry file. Synthetic truth stays in the separate simulation
+directory and is opened only after the report exists, solely to verify exact
+input digests and the known fixture boundary.*
+
+## Run the complete workflow
 
 Python 3.11 or newer is the only runtime dependency.
 
 ```bash
 make check
-make simulate
+make report
 python -m cowbot inspect artifacts/queue-saturation.ndjson
+make evidence-check
+make holdout-evidence-check
 ```
 
-The generated NDJSON stream contains its schema as the first record and then
-exactly ordered samples. A separate truth file records the injected mechanism
-change; it is not embedded in the telemetry consumed by a detector.
+The explicit detector command is:
 
-## Implemented boundary
+```bash
+python -m cowbot analyze \
+  artifacts/queue-saturation.ndjson \
+  --output artifacts/queue-saturation.report.json \
+  --overwrite
+```
 
-- a versioned schema with explicit units, bounds, and lagged directed edges;
-- graph validation, including cycle rejection and stable topological order;
-- deterministic, seedable telemetry generation without network or datasets;
-- a five-signal service scenario with a local `worker_cpu` mechanism shift and
-  propagated queue, latency, and error symptoms;
-- bounded NDJSON parsing with canonical serialization and strict sequencing;
-- a CLI that refuses to overwrite evidence unless explicitly requested.
+`analyze` deliberately has no truth-file argument. It accepts at most 64 MiB
+of telemetry, refuses reports above 50,000 observations or 64 MiB of JSON, and
+publishes one complete canonical report atomically.
 
-This simulator is not a production workload model and its injected root cause
-is not an empirical result. It exists to make every later detector decision
-replayable against known ground truth.
+## Follow one incident end to end
 
-## Direction
+The deterministic scenario contains five service signals and a cooling-loss
+shift in the local `worker_cpu` mechanism at sample 220. Queue, latency, and
+error symptoms propagate through the simulator afterward.
 
-The next slices will add a lag-aware local predictor, calibration-only
-nonconformity scores, sequential evidence accounting, and graph-constrained
-triage. Claims about false-alarm control will remain tied to their statistical
-assumptions rather than presented as operational guarantees.
+![Five native telemetry traces](docs/visuals/generated/default-telemetry.svg)
+
+*All 360 CLI-generated samples are shown. Vertical guides mark the fit,
+calibration/monitor boundary, and injected onset; each row states its real
+observed range and unit.*
+
+The default monitor uses fit targets before 120, calibration targets
+`120:200`, and monitoring targets `200:360`. Each metric receives a
+tie-conservative conformal rank from 80 calibration residuals. With
+`epsilon=0.5`, the report accumulates log power wealth and raises a local alarm
+at `log(100)`.
+
+![Log power wealth trajectories](docs/visuals/generated/default-power-wealth.svg)
+
+*Every monitoring observation in the canonical report is plotted. Worker CPU
+crosses first at 224, followed by queue depth at 225, latency at 227, and error
+rate at 229; request rate never alarms.*
+
+The supplied graph is used only after the bounded replay. A descendant is
+suppressed when an already-alarmed ancestor could reach it through a
+positive-lag path in time.
+
+![Graph-informed triage](docs/visuals/generated/default-triage.svg)
+
+*Report-derived alarm labels and lag-compatible paths leave `worker_cpu` as
+the ranked origin candidate, while preserving every downstream candidate in
+the report. This is predictor-failure triage, not proof of physical causality.*
+
+## Inspect the actual CLI result
+
+![Captured COWBOT terminal session](docs/visuals/generated/cli-session.svg)
+
+*This terminal figure is rendered from committed, actual stdout—not manually
+typed sample output. The text artifact also includes the retained seed-13 run
+and exact telemetry/report digests.*
+
+The default report contains:
+
+- the complete supplied schema and ordered lagged edges;
+- exact fit, calibration, and monitoring configuration;
+- every fitted coefficient, feature mean, scale, and calibration score;
+- every monitored residual, nonconformity score, p-value, and log wealth;
+- local alarm summaries, ranked origin candidates, and suppressed candidates;
+- SHA-256 binding to the exact telemetry bytes and an explicit claim boundary.
+
+Read the raw [CLI capture](docs/evidence/generated/queue-saturation.cli.txt),
+[canonical report](docs/evidence/generated/queue-saturation.report.json), or
+[evidence manifest](docs/evidence/generated/manifest.json) directly.
+
+## Keep the inconvenient case
+
+The default replay is a worked example, not a benchmark. COWBOT also freezes a
+deterministic counterexample instead of tuning it away.
+
+![Default and seed-13 boundary comparison](docs/visuals/generated/known-boundary.svg)
+
+*With seed 13, `queue_depth` alarms at 218—before the injected onset at
+220—and ranks first. The same method succeeding once and failing once makes
+the boundary visible; it does not estimate detection rate or false-alarm
+probability.*
+
+The machine-readable comparison is
+[`known-boundary.json`](docs/evidence/generated/known-boundary.json).
+
+## Freeze the broad evaluation before running it
+
+The next evaluation is pre-registered and deliberately unrun. Its strict
+contract fixes 128 deterministic paired incident/control seeds, excludes the
+two disclosed worked seeds, requires all 256 seed-arm rows, and counts every
+missing or invalid case as a failure. No holdout scenario, control generator,
+evaluator, or result generator was run to make the figure below.
+
+![Frozen, unrun paired-holdout protocol](docs/protocol/generated/frozen-unrun-protocol-flow.svg)
+
+*`FROZEN · UNRUN · NO RESULTS` is the claim boundary. The diagram is derived
+only from the validated protocol JSON: it exposes the pairing, monitor
+partitions, exact endpoint windows, and pre-registered acceptance counts, but
+contains no measured outcome or pass/fail claim.*
+
+The semantic protocol SHA-256 shown in the figure is
+`af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427`.
+Read the [protocol rationale](docs/evaluation-protocol.md), the
+[visual evidence note](docs/protocol-visual-evidence.md), or its exact
+[source/output manifest](docs/protocol/generated/manifest.json). Verify both
+generated bytes without evaluating a case:
+
+```bash
+python3 tools/render_protocol_visual.py --check
+```
+
+## Inspect the result-free harness
+
+The implemented holdout slice still cannot run a case. It materializes the
+exact frozen row plan, validates future row documents, reduces adverse inputs
+over full denominators, and exposes one read-only repository preflight:
+
+```bash
+python -m cowbot holdout-preflight --root .
+```
+
+![Actual holdout preflight CLI](docs/harness/generated/holdout-preflight-terminal.svg)
+
+*The terminal visual is rendered from actual canonical stdout. It states only
+what can be verified in the inspected repository: the protocol and plan
+digests, 128 pairs, 256 rows, an unclaimed result namespace, and the absence of
+an executor. It contains no seed or outcome values.*
+
+![Canonical holdout plan integrity](docs/harness/generated/holdout-plan-integrity.svg)
+
+*The plan diagram is derived from the validated protocol and immutable plan
+metadata. It shows how every pair becomes an incident row followed by a
+control row, and how all 21,980 canonical bytes bind to one digest without
+publishing the row seeds.*
+
+![Bounded holdout row contract](docs/harness/generated/holdout-row-contract.svg)
+
+*The row-boundary diagram documents the real decoder and reducer behavior:
+strict 16 KiB inputs, exact identity binding, pessimistic imputation, complete
+128-case denominators, and integer acceptance gates. It is a contract diagram,
+not an evaluation result.*
+
+Read the raw [preflight capture](docs/harness/generated/holdout-preflight.cli.txt),
+the exact [harness evidence manifest](docs/harness/generated/manifest.json),
+or the [evidence provenance guide](docs/holdout-evidence.md). Rebuild or verify
+the four result-free outputs and their manifest without executing a holdout
+case:
+
+```bash
+python3 tools/record_holdout_harness_evidence.py --check
+```
+
+## Engineering choices
+
+- **Versioned replay contract.** The first NDJSON record defines units, numeric
+  bounds, cadence, and a validated acyclic lag graph; sample order is strict.
+- **No truth leakage in recorded runs.** Simulation writes telemetry and truth
+  as a coordinated pair. The recorder copies only telemetry into a fresh
+  analyzer working directory, asserts that exact one-file inventory before
+  launching the real CLI, and binds the report to those bytes.
+- **Partition discipline.** Fit, calibration, and monitoring targets are
+  disjoint. Lag context may cross a boundary, but later targets never refit an
+  earlier model.
+- **Small inspectable models.** Ridge predictors use self-history plus declared
+  lagged parents, fit-only standardization, explicit numeric guards, and no ML
+  framework.
+- **Conservative evidence language.** Reused calibration under serial
+  dependence does not justify calling wealth 100 a 1% operational false-alarm
+  probability.
+- **Bounded and transactional I/O.** Streams, feature work, observations, and
+  report bytes have hard budgets. Symlinks and special output files are
+  rejected. Evidence writes reject every unexpected generated-directory entry
+  before staging, pin output directories during replacement, roll back prior
+  files on failure, and retain recoverable backups if restoration itself
+  fails.
+- **Reproducible portfolio evidence.** `tools/record_evidence.py` runs the
+  public CLI in a secret-free environment, generates source-derived SVGs, hashes
+  every payload and source input, and checks byte identity without touching
+  tracked artifacts.
+- **Result-free implementation boundary.** The holdout planner, strict row
+  decoder, pessimistic reducer, and preflight import no simulator, monitor,
+  report publisher, or result writer. Their evidence recorder runs only the
+  public read-only preflight in an allowlisted environment, checks the
+  repository namespace before and after, and publishes its manifest last.
+
+The equations, assumptions, resource budgets, and report schema are specified
+in the [method contract](docs/method.md). Evidence generation and its
+truth-isolation order are documented in
+[the evidence guide](docs/evidence/README.md).
+
+## Repository map
+
+```text
+cowbot/                  contracts, simulator, monitor, report, CLI
+tests/                   behavioral, numeric, I/O, and evidence checks
+tools/record_evidence.py deterministic evidence + SVG recorder
+tools/render_protocol_visual.py result-free protocol documentation renderer
+tools/record_holdout_harness_evidence.py result-free harness evidence recorder
+docs/method.md           statistical and operational claim contract
+docs/evidence/generated/ real CLI outputs, boundary record, hash manifest
+docs/visuals/generated/  six source-derived accessible figures
+docs/protocol/generated/ frozen protocol SVG + exact source/output manifest
+docs/harness/generated/  actual preflight + three source-derived artifacts
+```
+
+## Scope
+
+The simulator is not a production workload model. Missing values, dynamic
+schemas, graph discovery, online model updates, and contemporaneous edges are
+unsupported. A wrong or incomplete graph can produce wrong triage. Broad
+multi-seed evaluation is pre-registered and its result-free harness is
+implemented, but no executor or result publisher exists and the evaluation
+remains unrun. Throughput claims and operational validation remain future work
+and should use data not tuned against this included incident.
 
 ## License
 
