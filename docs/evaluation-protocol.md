@@ -30,7 +30,10 @@ There is no outcome-dependent resampling. The same accepted seed must drive a
 360-sample incident arm and its 360-sample no-injection control, producing 256
 required per-arm rows.
 
-The committed protocol decoder freezes the current `MonitorConfig` exactly:
+The committed protocol decoder freezes the current monitor parameters through
+an isolated `EvaluationMonitorConfig`. It mirrors the runtime
+`MonitorConfig` defaults and validation envelope without importing the monitor
+into result-free preflight:
 
 | Field | Value |
 | --- | ---: |
@@ -39,6 +42,10 @@ The committed protocol decoder freezes the current `MonitorConfig` exactly:
 | ridge | 0.000001 |
 | betting epsilon | 0.5 |
 | alarm wealth | 100 |
+
+A future executor must explicitly map these fields into the runtime
+`MonitorConfig` and prove that mapping before it can run a case. No such
+executor exists in this slice.
 
 Neither the worked default replay nor the retained seed-13 counterexample may
 enter the holdout population.

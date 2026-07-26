@@ -12,16 +12,15 @@ from math import isfinite
 from pathlib import Path, PurePosixPath
 from typing import Final, NoReturn, cast
 
-from .contracts import ValidationError
-from .monitor import MonitorConfig
-
-
 PROTOCOL_FORMAT: Final = "cowbot.evaluation_protocol.v1"
 PROTOCOL_ID: Final = "queue-saturation-paired-holdout-v1"
 PROTOCOL_STATUS: Final = "frozen-unrun"
 MAX_PROTOCOL_BYTES: Final = 64 * 1024
 MAX_SEEDS: Final = 4096
 MASK_64: Final = (1 << 64) - 1
+_MIN_FIT_ROWS: Final = 32
+_MIN_CALIBRATION_ROWS: Final = 32
+_MAX_PARTITION_END: Final = 1_000_000
 
 _ROOT_FIELDS: Final = frozenset(
     {
@@ -47,9 +46,7 @@ _MONITOR_FIELDS: Final = frozenset(
         "ridge",
     }
 )
-_SCENARIO_FIELDS: Final = frozenset(
-    {"control_arm", "incident_arm", "paired_by_seed"}
-)
+_SCENARIO_FIELDS: Final = frozenset({"control_arm", "incident_arm", "paired_by_seed"})
 _INCIDENT_FIELDS: Final = frozenset(
     {"generator", "name", "onset_index", "root_metric", "samples"}
 )
@@ -158,16 +155,82 @@ class SeedSchedule:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationMonitorConfig:
+    """Monitor parameters frozen without importing the monitoring runtime."""
+
+    fit_end: int = 120
+    calibration_end: int = 200
+    ridge: float = 1e-6
+    betting_epsilon: float = 0.5
+    alarm_wealth: float = 100.0
+
+    def __post_init__(self) -> None:
+        for value in (self.fit_end, self.calibration_end):
+            if isinstance(value, bool) or not isinstance(value, int):
+                _fail(ProtocolErrorCode.INVALID_VALUE)
+        if self.fit_end < _MIN_FIT_ROWS:
+            _fail(ProtocolErrorCode.INVALID_VALUE)
+        if (
+            self.fit_end > _MAX_PARTITION_END
+            or self.calibration_end > _MAX_PARTITION_END
+            or (self.calibration_end - self.fit_end < _MIN_CALIBRATION_ROWS)
+        ):
+            _fail(ProtocolErrorCode.INVALID_VALUE)
+
+        normalized: list[float] = []
+        for numeric_value in (
+            self.ridge,
+            self.betting_epsilon,
+            self.alarm_wealth,
+        ):
+            if isinstance(numeric_value, bool) or not isinstance(
+                numeric_value, (int, float)
+            ):
+                _fail(ProtocolErrorCode.INVALID_VALUE)
+            number: float | None = None
+            try:
+                number = float(numeric_value)
+            except (ArithmeticError, ValueError):
+                pass
+            if number is None or not isfinite(number):
+                _fail(ProtocolErrorCode.INVALID_VALUE)
+            normalized.append(number)
+
+        ridge, epsilon, alarm_wealth = normalized
+        if not 0.0 < ridge <= 1.0:
+            _fail(ProtocolErrorCode.INVALID_VALUE)
+        if not 0.0 < epsilon < 1.0:
+            _fail(ProtocolErrorCode.INVALID_VALUE)
+        if not 1.0 < alarm_wealth <= 1e12:
+            _fail(ProtocolErrorCode.INVALID_VALUE)
+        object.__setattr__(self, "ridge", ridge)
+        object.__setattr__(self, "betting_epsilon", epsilon)
+        object.__setattr__(self, "alarm_wealth", alarm_wealth)
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationReporting:
+    """Immutable reporting contract retained from the frozen document."""
+
+    aggregate_order: tuple[str, ...]
+    confidence_interval: str
+    misses_count_as_failures: bool
+    per_seed_rows_required: int
+    post_freeze_exclusions_allowed: bool
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationProtocol:
     """Immutable, pre-result protocol decoded from the committed JSON."""
 
-    monitor_config: MonitorConfig
+    monitor_config: EvaluationMonitorConfig
     incident_arm: IncidentArm
     control_arm: ControlArm
     worked_seed_exclusions: tuple[int, ...]
     seed_schedule: SeedSchedule
     maximum_detection_delay_samples: int
     acceptance_counts: tuple[tuple[str, int], ...]
+    reporting: EvaluationReporting
     result_paths: tuple[str, str]
     visual_prefix: str
     canonical_bytes: bytes
@@ -262,7 +325,7 @@ def _integer(value: object, *, minimum: int, maximum: int) -> int:
 
 
 def _number(value: object) -> float:
-    if type(value) not in (int, float):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         _fail(ProtocolErrorCode.INVALID_VALUE)
     result: float | None = None
     try:
@@ -331,28 +394,22 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
     _literal(document["status"], PROTOCOL_STATUS)
 
     monitor = _object(document["monitor_config"], _MONITOR_FIELDS)
-    monitor_config: MonitorConfig | None = None
-    try:
-        monitor_config = MonitorConfig(
-            fit_end=_integer(
-                monitor["fit_end"],
-                minimum=32,
-                maximum=1_000_000,
-            ),
-            calibration_end=_integer(
-                monitor["calibration_end"],
-                minimum=64,
-                maximum=1_000_000,
-            ),
-            ridge=_number(monitor["ridge"]),
-            betting_epsilon=_number(monitor["betting_epsilon"]),
-            alarm_wealth=_number(monitor["alarm_wealth"]),
-        )
-    except ValidationError:
-        pass
-    if monitor_config is None:
-        _fail(ProtocolErrorCode.INVALID_VALUE)
-    if monitor_config != MonitorConfig():
+    monitor_config = EvaluationMonitorConfig(
+        fit_end=_integer(
+            monitor["fit_end"],
+            minimum=32,
+            maximum=1_000_000,
+        ),
+        calibration_end=_integer(
+            monitor["calibration_end"],
+            minimum=64,
+            maximum=1_000_000,
+        ),
+        ridge=_number(monitor["ridge"]),
+        betting_epsilon=_number(monitor["betting_epsilon"]),
+        alarm_wealth=_number(monitor["alarm_wealth"]),
+    )
+    if monitor_config != EvaluationMonitorConfig():
         _fail(ProtocolErrorCode.INVALID_VALUE)
 
     scenario = _object(document["scenario"], _SCENARIO_FIELDS)
@@ -385,23 +442,18 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
             maximum=999_999,
         ),
     )
-    if (
-        incident_arm
-        != IncidentArm(
-            "queue_saturation",
-            "queue-saturation",
-            360,
-            220,
-            "worker_cpu",
-        )
-        or control_arm
-        != ControlArm(
-            "queue_saturation_control",
-            "queue-saturation-control",
-            360,
-            200,
-            359,
-        )
+    if incident_arm != IncidentArm(
+        "queue_saturation",
+        "queue-saturation",
+        360,
+        220,
+        "worker_cpu",
+    ) or control_arm != ControlArm(
+        "queue_saturation_control",
+        "queue-saturation-control",
+        360,
+        200,
+        359,
     ):
         _fail(ProtocolErrorCode.INVALID_VALUE)
 
@@ -409,8 +461,7 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
     if type(exclusions_value) is not list:
         _fail(ProtocolErrorCode.INVALID_SHAPE)
     exclusions = tuple(
-        _integer(seed, minimum=0, maximum=MASK_64)
-        for seed in exclusions_value
+        _integer(seed, minimum=0, maximum=MASK_64) for seed in exclusions_value
     )
     if exclusions != (13, 20260725):
         _fail(ProtocolErrorCode.INVALID_VALUE)
@@ -512,6 +563,22 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
     _literal(reporting["misses_count_as_failures"], True)
     _literal(reporting["post_freeze_exclusions_allowed"], False)
     _literal(reporting["per_seed_rows_required"], schedule.count * 2)
+    evaluation_reporting = EvaluationReporting(
+        aggregate_order=tuple(cast(list[str], order)),
+        confidence_interval=cast(str, reporting["confidence_interval"]),
+        misses_count_as_failures=cast(
+            bool,
+            reporting["misses_count_as_failures"],
+        ),
+        per_seed_rows_required=cast(
+            int,
+            reporting["per_seed_rows_required"],
+        ),
+        post_freeze_exclusions_allowed=cast(
+            bool,
+            reporting["post_freeze_exclusions_allowed"],
+        ),
+    )
 
     result = _object(document["result_artifacts"], _RESULT_FIELDS)
     _literal(result["state"], "absent-before-evaluation")
@@ -533,6 +600,7 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
         seed_schedule=schedule,
         maximum_detection_delay_samples=maximum_detection_delay,
         acceptance_counts=acceptance_counts,
+        reporting=evaluation_reporting,
         result_paths=(summary_path, per_seed_path),
         visual_prefix=visual_prefix,
         canonical_bytes=_canonical(document),
@@ -560,10 +628,7 @@ def derive_holdout_seeds(
         or type(schedule.derivation) is not str
     ):
         _fail(ProtocolErrorCode.INVALID_VALUE)
-    if any(
-        type(seed) is not int or not 0 <= seed <= MASK_64
-        for seed in excluded
-    ):
+    if any(type(seed) is not int or not 0 <= seed <= MASK_64 for seed in excluded):
         _fail(ProtocolErrorCode.INVALID_VALUE)
     if schedule.derivation != "sha256-counter-first-u64-be-v1":
         _fail(ProtocolErrorCode.INVALID_VALUE)
@@ -648,14 +713,11 @@ def read_frozen_protocol(root: Path) -> EvaluationProtocol:
 
 
 def _lstat_or_none(path: Path) -> os.stat_result | None:
-    failed = False
     try:
         return path.lstat()
     except FileNotFoundError:
         return None
     except OSError:
-        failed = True
-    if failed:
         _fail(ProtocolErrorCode.RESULT_NAMESPACE_CLAIMED)
 
 

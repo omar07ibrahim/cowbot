@@ -95,9 +95,9 @@
       "sha256": "952199f03b28b7c729c71575d6b9b9798b8663ae30cecc0ab91dd0767948ec82"
     },
     {
-      "bytes": 617,
+      "bytes": 1943,
       "path": "cowbot/__init__.py",
-      "sha256": "a8fc5584541dc10f5b35bdd8cb0f3b71dffb464eb683cedfa0c46153fc3453a9"
+      "sha256": "f281087e3fc3d18c84ca20721ce62744a442e49a40d651431f68785b8247cb6a"
     },
     {
       "bytes": 48,
@@ -110,9 +110,9 @@
       "sha256": "1868bfecaac5a9ef341c1cda2f87e97752cb145d59d9fee9b5c5d4050bed0b76"
     },
     {
-      "bytes": 14239,
+      "bytes": 14895,
       "path": "cowbot/cli.py",
-      "sha256": "c6b3b836cd3f00435d02eed9fe7920c8b88feadbe41cda34ae0bc85e2ce5aed4"
+      "sha256": "4bb8bc51d4f45b6c54d4232bab73d70e42e641b45216c070308ae45885b1e213"
     },
     {
       "bytes": 9645,

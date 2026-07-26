@@ -8,7 +8,9 @@ from pathlib import Path
 from cowbot.evaluation_protocol import (
     MASK_64,
     MAX_PROTOCOL_BYTES,
+    EvaluationMonitorConfig,
     EvaluationProtocol,
+    EvaluationReporting,
     ProtocolError,
     ProtocolErrorCode,
     SeedSchedule,
@@ -17,8 +19,6 @@ from cowbot.evaluation_protocol import (
     derive_holdout_seeds,
     read_frozen_protocol,
 )
-from cowbot.monitor import MonitorConfig
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = ROOT / "evaluation" / "protocol.v1.json"
@@ -74,12 +74,33 @@ class EvaluationProtocolTests(unittest.TestCase):
 
         self.assertIsInstance(protocol, EvaluationProtocol)
         self.assertEqual(protocol.sha256, FROZEN_PROTOCOL_SHA256)
-        self.assertEqual(protocol.monitor_config, MonitorConfig())
+        self.assertEqual(
+            protocol.monitor_config,
+            EvaluationMonitorConfig(),
+        )
+        self.assertEqual(
+            protocol.reporting,
+            EvaluationReporting(
+                aggregate_order=(
+                    "incident_detection",
+                    "timely_root_localization",
+                    "incident_pre_onset_false_alarm",
+                    "control_false_alarm",
+                ),
+                confidence_interval="wilson-score-95-two-sided",
+                misses_count_as_failures=True,
+                per_seed_rows_required=256,
+                post_freeze_exclusions_allowed=False,
+            ),
+        )
         self.assertEqual(protocol.expected_case_count, 256)
-        self.assertEqual(protocol.result_paths, (
-            "evaluation/results/summary.v1.json",
-            "evaluation/results/per-seed.v1.ndjson",
-        ))
+        self.assertEqual(
+            protocol.result_paths,
+            (
+                "evaluation/results/summary.v1.json",
+                "evaluation/results/per-seed.v1.ndjson",
+            ),
+        )
         self.assertEqual(
             protocol.visual_prefix,
             "docs/visuals/generated/evaluation-",
@@ -116,12 +137,19 @@ class EvaluationProtocolTests(unittest.TestCase):
         self.assertEqual(protocol.control_arm.monitor_start_inclusive, 200)
         self.assertEqual(protocol.control_arm.monitor_end_inclusive, 359)
         self.assertEqual(protocol.maximum_detection_delay_samples, 40)
-        self.assertEqual(dict(protocol.acceptance_counts), {
-            "maximum_control_false_alarms": 12,
-            "maximum_incident_pre_onset_false_alarms": 12,
-            "minimum_incident_detections": 116,
-            "minimum_timely_root_localizations": 96,
-        })
+        self.assertEqual(
+            protocol.seed_schedule.namespace,
+            "cowbot.queue-saturation.paired-holdout.v1",
+        )
+        self.assertEqual(
+            dict(protocol.acceptance_counts),
+            {
+                "maximum_control_false_alarms": 12,
+                "maximum_incident_pre_onset_false_alarms": 12,
+                "minimum_incident_detections": 116,
+                "minimum_timely_root_localizations": 96,
+            },
+        )
 
     def test_duplicate_unknown_missing_and_type_aliases_fail_closed(self) -> None:
         duplicate = (
@@ -166,9 +194,7 @@ class EvaluationProtocolTests(unittest.TestCase):
         mutations.append(changed_count)
 
         changed_threshold = protocol_document()
-        changed_threshold["acceptance_counts"][
-            "minimum_incident_detections"
-        ] = 115
+        changed_threshold["acceptance_counts"]["minimum_incident_detections"] = 115
         mutations.append(changed_threshold)
 
         changed_worked_seed = protocol_document()
@@ -204,9 +230,42 @@ class EvaluationProtocolTests(unittest.TestCase):
             SeedSchedule("namespace", 1, 0, "unknown"),
         )
         for schedule in invalid_schedules:
-            with self.subTest(schedule=schedule):
-                with self.assertRaises(ProtocolError):
-                    derive_holdout_seeds(schedule, excluded=())
+            with self.subTest(schedule=schedule), self.assertRaises(ProtocolError):
+                derive_holdout_seeds(schedule, excluded=())
+
+    def test_local_monitor_config_preserves_frozen_validation_rules(
+        self,
+    ) -> None:
+        self.assertEqual(
+            EvaluationMonitorConfig(),
+            EvaluationMonitorConfig(
+                fit_end=120,
+                calibration_end=200,
+                ridge=1e-6,
+                betting_epsilon=0.5,
+                alarm_wealth=100.0,
+            ),
+        )
+
+        invalid_configs = (
+            {"fit_end": True},
+            {"fit_end": 31},
+            {"calibration_end": 151},
+            {"calibration_end": 1_000_001},
+            {"ridge": 0.0},
+            {"ridge": float("inf")},
+            {"betting_epsilon": 1.0},
+            {"alarm_wealth": 1.0},
+            {"alarm_wealth": 1e12 + 1.0},
+        )
+        for arguments in invalid_configs:
+            with self.subTest(arguments=arguments):
+                with self.assertRaises(ProtocolError) as raised:
+                    EvaluationMonitorConfig(**arguments)
+                self.assertEqual(
+                    raised.exception.code,
+                    ProtocolErrorCode.INVALID_VALUE,
+                )
 
     def test_descriptor_reader_rejects_symlink_and_oversized_protocol(
         self,
@@ -244,9 +303,7 @@ class EvaluationProtocolTests(unittest.TestCase):
             root = Path(directory)
             outside = root / "outside"
             outside.mkdir()
-            (outside / "protocol.v1.json").write_bytes(
-                PROTOCOL_PATH.read_bytes()
-            )
+            (outside / "protocol.v1.json").write_bytes(PROTOCOL_PATH.read_bytes())
             (root / "evaluation").symlink_to(outside, target_is_directory=True)
 
             with self.assertRaises(ProtocolError) as raised:
