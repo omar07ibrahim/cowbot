@@ -24,7 +24,10 @@ The target-index partitions are disjoint. Lag context intentionally crosses a
 boundary: calibration target 120 may read fit sample 119, and monitoring target
 200 may read calibration sample 199. No calibration or monitoring target is
 used to fit a model. The simulator's separate truth file is never passed to
-`monitor_stream`.
+`monitor_stream`. In the committed evidence workflow, `analyze` additionally
+runs in a fresh working directory whose asserted inventory contains only the
+telemetry file; truth remains in the separate simulation directory until
+post-report verification.
 
 ## Local predictor
 
@@ -175,10 +178,12 @@ claim follows from the simulator.
 
 `cowbot analyze` reads the telemetry bytes once, computes their SHA-256 digest,
 validates the complete bounded stream, and passes only its schema and samples
-to `monitor_stream`. There is deliberately no truth-file input. The analyzer
-rejects telemetry above 64 MiB before JSON parsing. It also rejects a report
-above 50,000 monitoring observations before model fitting, and rejects
-serialized JSON above 64 MiB before publication.
+to `monitor_stream`. There is deliberately no truth-file input. The evidence
+recorder launches it from a telemetry-only working directory and supplies a
+fixed environment with no truth-bearing variable. The analyzer rejects
+telemetry above 64 MiB before JSON parsing. It also rejects a report above
+50,000 monitoring observations before model fitting, and rejects serialized
+JSON above 64 MiB before publication.
 
 The `cowbot.monitor_report.v1` JSON record includes the supplied schema, exact
 fit/calibration/monitor configuration, fitted local model parameters,

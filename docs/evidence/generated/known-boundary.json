@@ -1,0 +1,103 @@
+{
+  "cases": [
+    {
+      "alarms": [
+        {
+          "alarm_index": null,
+          "metric": "request_rate",
+          "peak_log_power_wealth": 0.0
+        },
+        {
+          "alarm_index": 224,
+          "metric": "worker_cpu",
+          "peak_log_power_wealth": 208.04631153074905
+        },
+        {
+          "alarm_index": 225,
+          "metric": "queue_depth",
+          "peak_log_power_wealth": 206.87325426482067
+        },
+        {
+          "alarm_index": 227,
+          "metric": "latency_ms",
+          "peak_log_power_wealth": 204.4818232559912
+        },
+        {
+          "alarm_index": 229,
+          "metric": "error_rate",
+          "peak_log_power_wealth": 183.91263036378135
+        }
+      ],
+      "alarms_before_injected_onset": [],
+      "label": "default worked example",
+      "ranked_origin": {
+        "alarm_index": 224,
+        "compatible_downstream_alarm_count": 3,
+        "metric": "worker_cpu"
+      },
+      "ranked_origin_matches_injected_root": true,
+      "report_sha256": "0a73e33f7d3b0d67c2d44be49bb98c34158a3773827651e1733617a5390d10b9",
+      "seed": 20260725,
+      "telemetry_sha256": "19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c",
+      "truth": {
+        "onset_index": 220,
+        "root_metric": "worker_cpu"
+      }
+    },
+    {
+      "alarms": [
+        {
+          "alarm_index": null,
+          "metric": "request_rate",
+          "peak_log_power_wealth": 0.0
+        },
+        {
+          "alarm_index": 224,
+          "metric": "worker_cpu",
+          "peak_log_power_wealth": 208.65617833533105
+        },
+        {
+          "alarm_index": 218,
+          "metric": "queue_depth",
+          "peak_log_power_wealth": 213.3116376916772
+        },
+        {
+          "alarm_index": 228,
+          "metric": "latency_ms",
+          "peak_log_power_wealth": 203.04344615628713
+        },
+        {
+          "alarm_index": 246,
+          "metric": "error_rate",
+          "peak_log_power_wealth": 104.47566358550064
+        }
+      ],
+      "alarms_before_injected_onset": [
+        "queue_depth"
+      ],
+      "label": "retained counterexample",
+      "ranked_origin": {
+        "alarm_index": 218,
+        "compatible_downstream_alarm_count": 2,
+        "metric": "queue_depth"
+      },
+      "ranked_origin_matches_injected_root": false,
+      "report_sha256": "5ed141317ac7f623f5852b15b2bb4e4ea5c95251492a7190c185bc8863408e4c",
+      "seed": 13,
+      "telemetry_sha256": "a860c5b5575833bf82088cbab830682bdc3b9c17f79730dc36588da5decad933",
+      "truth": {
+        "onset_index": 220,
+        "root_metric": "worker_cpu"
+      }
+    }
+  ],
+  "claim_boundary": "two deterministic fixtures expose behavior but do not estimate detection rate, false-alarm probability, or causal accuracy",
+  "format": "cowbot.known_boundary.v1",
+  "method_configuration": {
+    "alarm_wealth": 100.0,
+    "betting_epsilon": 0.5,
+    "ridge": 1e-06
+  },
+  "scenario": "queue-saturation",
+  "verification_order": "each analyze command ran in a directory containing telemetry only; each truth digest was opened and verified only after its report completed"
+}

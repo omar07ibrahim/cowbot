@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1210" height="735" viewBox="0 0 1210 735" role="img" aria-labelledby="svg-title svg-desc">
+  <title id="svg-title">Default replay graph triage</title>
+  <desc id="svg-desc">Dependency graph showing worker CPU as the ranked origin at sample 224 and queue, latency, and error rate as lag-compatible symptoms.</desc>
+  <style>
+    .bg { fill: #07111f; }
+    .panel { fill: #0d1b2d; stroke: #263b55; stroke-width: 1; }
+    .title { fill: #f8fafc; font: 700 28px ui-sans-serif, system-ui, sans-serif; }
+    .subtitle { fill: #9fb2ca; font: 15px ui-sans-serif, system-ui, sans-serif; }
+    .label { fill: #dce7f5; font: 600 14px ui-sans-serif, system-ui, sans-serif; }
+    .small { fill: #9fb2ca; font: 12px ui-sans-serif, system-ui, sans-serif; }
+    .mono { fill: #d8e5f5; font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .grid { stroke: #263b55; stroke-width: 1; }
+    .muted { stroke: #66809f; stroke-width: 1.5; }
+  </style>
+  <rect class="bg" width="1210" height="735" rx="18"/>
+  <text x="45" y="55" class="title">Lag-compatible graph triage</text>
+  <text x="45" y="84" class="subtitle">Node labels and status come directly from the canonical default report.</text>
+  <defs><marker id="triage-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#66809f"/></marker></defs>
+  <path d="M933,190 Q970.0,218.5 1007,315" fill="none" stroke="#66809f" stroke-width="2" marker-end="url(#triage-arrow)"/>
+  <text x="970.0" y="224.5" class="small">lag 1</text>
+  <path d="M698,315 Q737.5,218.5 777,190" fill="none" stroke="#66809f" stroke-width="2" marker-end="url(#triage-arrow)"/>
+  <text x="737.5" y="224.5" class="small">lag 1</text>
+  <path d="M223,285 Q382.5,266.0 542,315" fill="none" stroke="#66809f" stroke-width="2" marker-end="url(#triage-arrow)"/>
+  <text x="382.5" y="272.0" class="small">lag 1</text>
+  <path d="M223,285 Q262.5,196.0 302,175" fill="none" stroke="#66809f" stroke-width="2" marker-end="url(#triage-arrow)"/>
+  <text x="262.5" y="202.0" class="small">lag 1</text>
+  <path d="M458,175 Q617.5,148.5 777,190" fill="none" stroke="#66809f" stroke-width="2" marker-end="url(#triage-arrow)"/>
+  <text x="617.5" y="154.5" class="small">lag 1</text>
+  <path d="M458,175 Q500.0,211.0 542,315" fill="none" stroke="#66809f" stroke-width="2" marker-end="url(#triage-arrow)"/>
+  <text x="500.0" y="217.0" class="small">lag 1</text>
+  <rect x="63" y="238" width="164" height="94" rx="13" fill="#0d1b2d" stroke="#38bdf8" stroke-width="2"/>
+  <text x="145" y="272" class="label" text-anchor="middle">request rate</text>
+  <text x="145" y="296" class="small" text-anchor="middle">alarm none</text>
+  <text x="145" y="316" class="small" text-anchor="middle">no local alarm</text>
+  <rect x="298" y="128" width="164" height="94" rx="13" fill="#2b2110" stroke="#f59e0b" stroke-width="2"/>
+  <text x="380" y="162" class="label" text-anchor="middle">worker CPU</text>
+  <text x="380" y="186" class="small" text-anchor="middle">alarm 224</text>
+  <text x="380" y="206" class="small" text-anchor="middle">ranked origin</text>
+  <rect x="538" y="268" width="164" height="94" rx="13" fill="#151c32" stroke="#a78bfa" stroke-width="2"/>
+  <text x="620" y="302" class="label" text-anchor="middle">queue depth</text>
+  <text x="620" y="326" class="small" text-anchor="middle">alarm 225</text>
+  <text x="620" y="346" class="small" text-anchor="middle">suppressed symptom</text>
+  <rect x="773" y="143" width="164" height="94" rx="13" fill="#151c32" stroke="#a78bfa" stroke-width="2"/>
+  <text x="855" y="177" class="label" text-anchor="middle">latency</text>
+  <text x="855" y="201" class="small" text-anchor="middle">alarm 227</text>
+  <text x="855" y="221" class="small" text-anchor="middle">suppressed symptom</text>
+  <rect x="1003" y="268" width="164" height="94" rx="13" fill="#151c32" stroke="#a78bfa" stroke-width="2"/>
+  <text x="1085" y="302" class="label" text-anchor="middle">error rate</text>
+  <text x="1085" y="326" class="small" text-anchor="middle">alarm 229</text>
+  <text x="1085" y="346" class="small" text-anchor="middle">suppressed symptom</text>
+  <rect x="45" y="495" width="1120" height="130" rx="12" class="panel"/>
+  <text x="70" y="532" class="label">Why only worker CPU remains</text>
+  <text x="70" y="561" class="subtitle">Its alarm at 224 can reach queue 225, latency 227, and error rate 229 along positive-lag paths.</text>
+  <text x="70" y="591" class="subtitle">The descendants stay in the report as suppressed candidates; the graph is an operator hypothesis, not causal proof.</text>
+  <circle cx="80" cy="677" r="7" fill="#f59e0b"/><text x="97" y="682" class="small">ranked origin</text>
+  <circle cx="244" cy="677" r="7" fill="#a78bfa"/><text x="261" y="682" class="small">suppressed alarm</text>
+  <circle cx="435" cy="677" r="7" fill="#38bdf8"/><text x="452" y="682" class="small">no alarm</text>
+</svg>

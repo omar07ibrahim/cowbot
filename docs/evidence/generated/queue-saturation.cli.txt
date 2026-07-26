@@ -1,0 +1,44 @@
+COWBOT deterministic replay evidence
+working directory: exclusive ignored staging
+analyze working directory: telemetry only; truth absent
+
+$ python -m cowbot simulate --output queue-saturation.ndjson --truth-output queue-saturation.truth.json --overwrite
+{"metrics": 5, "samples": 360, "status": "generated", "telemetry_sha256": "19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c"}
+
+$ python -m cowbot analyze queue-saturation.ndjson --output queue-saturation.report.json --overwrite
+COWBOT replay analysis
+telemetry sha256  19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c
+partitions        fit target end 120 (lag-dependent starts) | calibration 120:200 | monitor 200:360
+
+metric             alarm   peak log-wealth   triage
+request_rate        none             0.000   no alarm
+worker_cpu           224           208.046   origin candidate
+queue_depth          225           206.873   suppressed candidate
+latency_ms           227           204.482   suppressed candidate
+error_rate           229           183.913   suppressed candidate
+
+ranked candidate   worker_cpu @ 224 (3 compatible downstream alarms)
+report sha256     0a73e33f7d3b0d67c2d44be49bb98c34158a3773827651e1733617a5390d10b9
+claim boundary    retrospective predictor-failure triage; not causal proof
+
+$ python -m cowbot inspect queue-saturation.ndjson
+{"edges": 6, "metrics": ["request_rate", "worker_cpu", "queue_depth", "latency_ms", "error_rate"], "samples": 360, "schema_version": 1, "status": "valid", "telemetry_sha256": "19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c"}
+
+$ python -m cowbot simulate --output queue-saturation.ndjson --truth-output queue-saturation.truth.json --seed 13 --overwrite
+{"metrics": 5, "samples": 360, "status": "generated", "telemetry_sha256": "a860c5b5575833bf82088cbab830682bdc3b9c17f79730dc36588da5decad933"}
+
+$ python -m cowbot analyze queue-saturation.ndjson --output queue-saturation.report.json --overwrite
+COWBOT replay analysis
+telemetry sha256  a860c5b5575833bf82088cbab830682bdc3b9c17f79730dc36588da5decad933
+partitions        fit target end 120 (lag-dependent starts) | calibration 120:200 | monitor 200:360
+
+metric             alarm   peak log-wealth   triage
+request_rate        none             0.000   no alarm
+worker_cpu           224           208.656   origin candidate
+queue_depth          218           213.312   origin candidate
+latency_ms           228           203.043   suppressed candidate
+error_rate           246           104.476   suppressed candidate
+
+ranked candidate   queue_depth @ 218 (2 compatible downstream alarms)
+report sha256     5ed141317ac7f623f5852b15b2bb4e4ea5c95251492a7190c185bc8863408e4c
+claim boundary    retrospective predictor-failure triage; not causal proof

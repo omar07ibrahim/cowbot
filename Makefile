@@ -1,9 +1,9 @@
-.PHONY: check test simulate report clean
+.PHONY: check test simulate report evidence evidence-check clean
 
 PYTHON ?= python3
 
 check: test
-	$(PYTHON) -m compileall -q cowbot tests
+	$(PYTHON) -m compileall -q cowbot tests tools
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v
@@ -19,6 +19,12 @@ report: simulate
 		artifacts/queue-saturation.ndjson \
 		--output artifacts/queue-saturation.report.json \
 		--overwrite
+
+evidence:
+	$(PYTHON) tools/record_evidence.py --write
+
+evidence-check:
+	$(PYTHON) tools/record_evidence.py --check
 
 clean:
 	rm -rf artifacts build dist

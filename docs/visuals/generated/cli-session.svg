@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1210" height="1190" viewBox="0 0 1210 1190" role="img" aria-labelledby="svg-title svg-desc">
+  <title id="svg-title">COWBOT CLI evidence capture</title>
+  <desc id="svg-desc">A terminal rendering of actual standard output from the default and seed 13 replay commands used to build committed evidence.</desc>
+  <style>
+    .bg { fill: #07111f; }
+    .panel { fill: #0d1b2d; stroke: #263b55; stroke-width: 1; }
+    .title { fill: #f8fafc; font: 700 28px ui-sans-serif, system-ui, sans-serif; }
+    .subtitle { fill: #9fb2ca; font: 15px ui-sans-serif, system-ui, sans-serif; }
+    .label { fill: #dce7f5; font: 600 14px ui-sans-serif, system-ui, sans-serif; }
+    .small { fill: #9fb2ca; font: 12px ui-sans-serif, system-ui, sans-serif; }
+    .mono { fill: #d8e5f5; font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .grid { stroke: #263b55; stroke-width: 1; }
+    .muted { stroke: #66809f; stroke-width: 1.5; }
+  </style>
+  <rect class="bg" width="1210" height="1190" rx="18"/>
+  <text x="45" y="52" class="title">Captured public CLI replay</text>
+  <text x="45" y="80" class="subtitle">Actual stdout from deterministic simulate, analyze, and inspect commands.</text>
+  <rect x="45" y="110" width="1120" height="1040" rx="12" fill="#020817" stroke="#263b55"/>
+  <circle cx="72" cy="135" r="6" fill="#fb7185"/><circle cx="92" cy="135" r="6" fill="#f59e0b"/><circle cx="112" cy="135" r="6" fill="#34d399"/>
+  <text x="68" y="170" class="mono" fill="#d8e5f5">COWBOT deterministic replay evidence</text>
+  <text x="68" y="190" class="mono" fill="#d8e5f5">working directory: exclusive ignored staging</text>
+  <text x="68" y="210" class="mono" fill="#d8e5f5">analyze working directory: telemetry only; truth absent</text>
+  <text x="68" y="230" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="250" class="mono" fill="#7dd3fc">$ python -m cowbot simulate --output queue-saturation.ndjson --truth-output queue-saturation.truth.json --overwrite</text>
+  <text x="68" y="270" class="mono" fill="#d8e5f5">{&quot;metrics&quot;: 5, &quot;samples&quot;: 360, &quot;status&quot;: &quot;generated&quot;, &quot;telemetry_sha256&quot;: </text>
+  <text x="68" y="290" class="mono" fill="#d8e5f5">  &quot;19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c&quot;}</text>
+  <text x="68" y="310" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="330" class="mono" fill="#7dd3fc">$ python -m cowbot analyze queue-saturation.ndjson --output queue-saturation.report.json --overwrite</text>
+  <text x="68" y="350" class="mono" fill="#d8e5f5">COWBOT replay analysis</text>
+  <text x="68" y="370" class="mono" fill="#d8e5f5">telemetry sha256  19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c</text>
+  <text x="68" y="390" class="mono" fill="#d8e5f5">partitions        fit target end 120 (lag-dependent starts) | calibration 120:200 | monitor 200:360</text>
+  <text x="68" y="410" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="430" class="mono" fill="#d8e5f5">metric             alarm   peak log-wealth   triage</text>
+  <text x="68" y="450" class="mono" fill="#d8e5f5">request_rate        none             0.000   no alarm</text>
+  <text x="68" y="470" class="mono" fill="#d8e5f5">worker_cpu           224           208.046   origin candidate</text>
+  <text x="68" y="490" class="mono" fill="#d8e5f5">queue_depth          225           206.873   suppressed candidate</text>
+  <text x="68" y="510" class="mono" fill="#d8e5f5">latency_ms           227           204.482   suppressed candidate</text>
+  <text x="68" y="530" class="mono" fill="#d8e5f5">error_rate           229           183.913   suppressed candidate</text>
+  <text x="68" y="550" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="570" class="mono" fill="#d8e5f5">ranked candidate   worker_cpu @ 224 (3 compatible downstream alarms)</text>
+  <text x="68" y="590" class="mono" fill="#d8e5f5">report sha256     0a73e33f7d3b0d67c2d44be49bb98c34158a3773827651e1733617a5390d10b9</text>
+  <text x="68" y="610" class="mono" fill="#d8e5f5">claim boundary    retrospective predictor-failure triage; not causal proof</text>
+  <text x="68" y="630" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="650" class="mono" fill="#7dd3fc">$ python -m cowbot inspect queue-saturation.ndjson</text>
+  <text x="68" y="670" class="mono" fill="#d8e5f5">{&quot;edges&quot;: 6, &quot;metrics&quot;: [&quot;request_rate&quot;, &quot;worker_cpu&quot;, &quot;queue_depth&quot;, &quot;latency_ms&quot;, &quot;error_rate&quot;], &quot;samples&quot;: 360, &quot;schema_version&quot;:</text>
+  <text x="68" y="690" class="mono" fill="#d8e5f5">   1, &quot;status&quot;: &quot;valid&quot;, &quot;telemetry_sha256&quot;: &quot;19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c&quot;}</text>
+  <text x="68" y="710" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="730" class="mono" fill="#7dd3fc">$ python -m cowbot simulate --output queue-saturation.ndjson --truth-output queue-saturation.truth.json --seed 13 --overwrite</text>
+  <text x="68" y="750" class="mono" fill="#d8e5f5">{&quot;metrics&quot;: 5, &quot;samples&quot;: 360, &quot;status&quot;: &quot;generated&quot;, &quot;telemetry_sha256&quot;: </text>
+  <text x="68" y="770" class="mono" fill="#d8e5f5">  &quot;a860c5b5575833bf82088cbab830682bdc3b9c17f79730dc36588da5decad933&quot;}</text>
+  <text x="68" y="790" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="810" class="mono" fill="#7dd3fc">$ python -m cowbot analyze queue-saturation.ndjson --output queue-saturation.report.json --overwrite</text>
+  <text x="68" y="830" class="mono" fill="#d8e5f5">COWBOT replay analysis</text>
+  <text x="68" y="850" class="mono" fill="#d8e5f5">telemetry sha256  a860c5b5575833bf82088cbab830682bdc3b9c17f79730dc36588da5decad933</text>
+  <text x="68" y="870" class="mono" fill="#d8e5f5">partitions        fit target end 120 (lag-dependent starts) | calibration 120:200 | monitor 200:360</text>
+  <text x="68" y="890" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="910" class="mono" fill="#d8e5f5">metric             alarm   peak log-wealth   triage</text>
+  <text x="68" y="930" class="mono" fill="#d8e5f5">request_rate        none             0.000   no alarm</text>
+  <text x="68" y="950" class="mono" fill="#d8e5f5">worker_cpu           224           208.656   origin candidate</text>
+  <text x="68" y="970" class="mono" fill="#d8e5f5">queue_depth          218           213.312   origin candidate</text>
+  <text x="68" y="990" class="mono" fill="#d8e5f5">latency_ms           228           203.043   suppressed candidate</text>
+  <text x="68" y="1010" class="mono" fill="#d8e5f5">error_rate           246           104.476   suppressed candidate</text>
+  <text x="68" y="1030" class="mono" fill="#d8e5f5"></text>
+  <text x="68" y="1050" class="mono" fill="#d8e5f5">ranked candidate   queue_depth @ 218 (2 compatible downstream alarms)</text>
+  <text x="68" y="1070" class="mono" fill="#d8e5f5">report sha256     5ed141317ac7f623f5852b15b2bb4e4ea5c95251492a7190c185bc8863408e4c</text>
+  <text x="68" y="1090" class="mono" fill="#d8e5f5">claim boundary    retrospective predictor-failure triage; not causal proof</text>
+</svg>

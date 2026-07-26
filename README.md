@@ -1,17 +1,23 @@
 # COWBOT
 
 COWBOT is a graph-informed, replayable mechanism watchdog for multivariate
-service telemetry. The project is being built around one inspectable vertical
-slice: replay a bounded stream, detect failure of a fitted local predictor, and
-distinguish its likely origin from downstream symptoms using an
-operator-supplied dependency graph.
+service telemetry. It fits one small local predictor per metric, calibrates
+residual ranks on a disjoint healthy partition, accumulates sequential
+evidence, and uses an operator-supplied lag graph to separate a plausible
+origin from downstream symptoms.
 
-The current slice provides the deterministic telemetry contract, incident
-simulator, an importable calibrated mechanism monitor, and a truth-independent
-report CLI. Committed replay evidence and the visual incident report are
-intentionally not claimed yet.
+The repository is an inspectable systems slice, not a dashboard mockup:
+simulation, stream contracts, bounded analysis, canonical reports, exact CLI
+captures, and every figure below are executable and byte-reproducible.
 
-## Reproduce the current slice
+![Replay evidence workflow](docs/visuals/generated/replay-workflow.svg)
+
+*The recorder runs each analyzer in a fresh directory whose exact inventory is
+the telemetry file. Synthetic truth stays in the separate simulation
+directory and is opened only after the report exists, solely to verify exact
+input digests and the known fixture boundary.*
+
+## Run the complete workflow
 
 Python 3.11 or newer is the only runtime dependency.
 
@@ -19,19 +25,10 @@ Python 3.11 or newer is the only runtime dependency.
 make check
 make report
 python -m cowbot inspect artifacts/queue-saturation.ndjson
+make evidence-check
 ```
 
-The generated NDJSON stream contains its schema as the first record and then
-exactly ordered samples. A separate truth file records the injected mechanism
-change; it is not embedded in the telemetry consumed by a detector.
-`queue-saturation.report.json` is deterministic, human-readable JSON containing
-the fitted local models, calibration scores, per-sample monitoring
-observations, alarm ordering, suppressed downstream candidates, input digest,
-and the statistical claim boundary. The analyzer accepts at most 64 MiB of
-telemetry, refuses reports above 50,000 observations or 64 MiB of JSON, and
-publishes the complete report atomically.
-
-The equivalent explicit command is:
+The explicit detector command is:
 
 ```bash
 python -m cowbot analyze \
@@ -40,43 +37,131 @@ python -m cowbot analyze \
   --overwrite
 ```
 
-`analyze` has no truth-file argument. The separate synthetic truth remains
-available for later evidence verification, but it cannot influence the monitor
-report.
+`analyze` deliberately has no truth-file argument. It accepts at most 64 MiB
+of telemetry, refuses reports above 50,000 observations or 64 MiB of JSON, and
+publishes one complete canonical report atomically.
 
-## Implemented boundary
+## Follow one incident end to end
 
-- a versioned schema with explicit units, bounds, and lagged directed edges;
-- graph validation, including cycle rejection and stable topological order;
-- deterministic, seedable telemetry generation without network or datasets;
-- a five-signal service scenario with a local `worker_cpu` mechanism shift and
-  propagated queue, latency, and error symptoms;
-- bounded NDJSON parsing with canonical serialization and strict sequencing;
-- a CLI that refuses to overwrite evidence unless explicitly requested;
-- one standardized ridge predictor per metric, using its own lagged history and
-  only the graph parents available before the predicted sample;
-- disjoint fit, calibration, and monitoring partitions;
-- tie-conservative rank p-values and a bounded log power-wealth accumulator;
-- lag-constrained retrospective triage that suppresses a downstream alarm only
-  when an upstream alarm could reach it through the supplied graph in time;
-- a canonical JSON report with an exact input digest, a CLI-emitted report
-  digest, complete observation history, explicit model parameters, and atomic
-  overwrite semantics.
+The deterministic scenario contains five service signals and a cooling-loss
+shift in the local `worker_cpu` mechanism at sample 220. Queue, latency, and
+error symptoms propagate through the simulator afterward.
 
-This simulator is not a production workload model and its injected root cause
-is not an empirical result. It exists to make every later detector decision
-replayable against known ground truth.
+![Five native telemetry traces](docs/visuals/generated/default-telemetry.svg)
 
-The monitor deliberately does not receive the truth record. Its assumptions,
-equations, evidence semantics, and limitations are specified in
-[the method contract](docs/method.md).
+*All 360 CLI-generated samples are shown. Vertical guides mark the fit,
+calibration/monitor boundary, and injected onset; each row states its real
+observed range and unit.*
 
-## Direction
+The default monitor uses fit targets before 120, calibration targets
+`120:200`, and monitoring targets `200:360`. Each metric receives a
+tie-conservative conformal rank from 80 calibration residuals. With
+`epsilon=0.5`, the report accumulates log power wealth and raises a local alarm
+at `log(100)`.
 
-The next slice will add a checked-in terminal workflow, committed replay
-evidence, and source-derived visuals. Claims about false-alarm control remain
-tied to their statistical assumptions rather than presented as operational
-guarantees.
+![Log power wealth trajectories](docs/visuals/generated/default-power-wealth.svg)
+
+*Every monitoring observation in the canonical report is plotted. Worker CPU
+crosses first at 224, followed by queue depth at 225, latency at 227, and error
+rate at 229; request rate never alarms.*
+
+The supplied graph is used only after the bounded replay. A descendant is
+suppressed when an already-alarmed ancestor could reach it through a
+positive-lag path in time.
+
+![Graph-informed triage](docs/visuals/generated/default-triage.svg)
+
+*Report-derived alarm labels and lag-compatible paths leave `worker_cpu` as
+the ranked origin candidate, while preserving every downstream candidate in
+the report. This is predictor-failure triage, not proof of physical causality.*
+
+## Inspect the actual CLI result
+
+![Captured COWBOT terminal session](docs/visuals/generated/cli-session.svg)
+
+*This terminal figure is rendered from committed, actual stdout—not manually
+typed sample output. The text artifact also includes the retained seed-13 run
+and exact telemetry/report digests.*
+
+The default report contains:
+
+- the complete supplied schema and ordered lagged edges;
+- exact fit, calibration, and monitoring configuration;
+- every fitted coefficient, feature mean, scale, and calibration score;
+- every monitored residual, nonconformity score, p-value, and log wealth;
+- local alarm summaries, ranked origin candidates, and suppressed candidates;
+- SHA-256 binding to the exact telemetry bytes and an explicit claim boundary.
+
+Read the raw [CLI capture](docs/evidence/generated/queue-saturation.cli.txt),
+[canonical report](docs/evidence/generated/queue-saturation.report.json), or
+[evidence manifest](docs/evidence/generated/manifest.json) directly.
+
+## Keep the inconvenient case
+
+The default replay is a worked example, not a benchmark. COWBOT also freezes a
+deterministic counterexample instead of tuning it away.
+
+![Default and seed-13 boundary comparison](docs/visuals/generated/known-boundary.svg)
+
+*With seed 13, `queue_depth` alarms at 218—before the injected onset at
+220—and ranks first. The same method succeeding once and failing once makes
+the boundary visible; it does not estimate detection rate or false-alarm
+probability.*
+
+The machine-readable comparison is
+[`known-boundary.json`](docs/evidence/generated/known-boundary.json).
+
+## Engineering choices
+
+- **Versioned replay contract.** The first NDJSON record defines units, numeric
+  bounds, cadence, and a validated acyclic lag graph; sample order is strict.
+- **No truth leakage in recorded runs.** Simulation writes telemetry and truth
+  as a coordinated pair. The recorder copies only telemetry into a fresh
+  analyzer working directory, asserts that exact one-file inventory before
+  launching the real CLI, and binds the report to those bytes.
+- **Partition discipline.** Fit, calibration, and monitoring targets are
+  disjoint. Lag context may cross a boundary, but later targets never refit an
+  earlier model.
+- **Small inspectable models.** Ridge predictors use self-history plus declared
+  lagged parents, fit-only standardization, explicit numeric guards, and no ML
+  framework.
+- **Conservative evidence language.** Reused calibration under serial
+  dependence does not justify calling wealth 100 a 1% operational false-alarm
+  probability.
+- **Bounded and transactional I/O.** Streams, feature work, observations, and
+  report bytes have hard budgets. Symlinks and special output files are
+  rejected. Evidence writes reject every unexpected generated-directory entry
+  before staging, pin output directories during replacement, roll back prior
+  files on failure, and retain recoverable backups if restoration itself
+  fails.
+- **Reproducible portfolio evidence.** `tools/record_evidence.py` runs the
+  public CLI in a secret-free environment, generates source-derived SVGs, hashes
+  every payload and source input, and checks byte identity without touching
+  tracked artifacts.
+
+The equations, assumptions, resource budgets, and report schema are specified
+in the [method contract](docs/method.md). Evidence generation and its
+truth-isolation order are documented in
+[the evidence guide](docs/evidence/README.md).
+
+## Repository map
+
+```text
+cowbot/                  contracts, simulator, monitor, report, CLI
+tests/                   behavioral, numeric, I/O, and evidence checks
+tools/record_evidence.py deterministic evidence + SVG recorder
+docs/method.md           statistical and operational claim contract
+docs/evidence/generated/ real CLI outputs, boundary record, hash manifest
+docs/visuals/generated/  six source-derived accessible figures
+```
+
+## Scope
+
+The simulator is not a production workload model. Missing values, dynamic
+schemas, graph discovery, online model updates, and contemporaneous edges are
+unsupported. A wrong or incomplete graph can produce wrong triage. Broad
+multi-seed evaluation, throughput claims, and operational validation remain
+future work and should use data not tuned against this included incident.
 
 ## License
 
