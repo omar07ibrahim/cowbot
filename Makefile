@@ -1,4 +1,4 @@
-.PHONY: check test simulate clean
+.PHONY: check test simulate report clean
 
 PYTHON ?= python3
 
@@ -12,6 +12,12 @@ simulate:
 	$(PYTHON) -m cowbot simulate \
 		--output artifacts/queue-saturation.ndjson \
 		--truth-output artifacts/queue-saturation.truth.json \
+		--overwrite
+
+report: simulate
+	$(PYTHON) -m cowbot analyze \
+		artifacts/queue-saturation.ndjson \
+		--output artifacts/queue-saturation.report.json \
 		--overwrite
 
 clean:

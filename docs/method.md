@@ -170,3 +170,25 @@ claim follows from the simulator.
 - Threshold tuning on the included incident would contaminate its evaluation.
 - Benchmark, latency, throughput, and broad detection-rate claims are outside
   the current slice.
+
+## Report contract
+
+`cowbot analyze` reads the telemetry bytes once, computes their SHA-256 digest,
+validates the complete bounded stream, and passes only its schema and samples
+to `monitor_stream`. There is deliberately no truth-file input. The analyzer
+rejects telemetry above 64 MiB before JSON parsing. It also rejects a report
+above 50,000 monitoring observations before model fitting, and rejects
+serialized JSON above 64 MiB before publication.
+
+The `cowbot.monitor_report.v1` JSON record includes the supplied schema, exact
+fit/calibration/monitor configuration, fitted local model parameters,
+calibration scores, all monitoring observations, local alarm summaries,
+lag-compatible origin candidates, suppressed downstream candidates, and the
+claim boundary above. Keys and indentation are deterministic, non-finite JSON
+numbers are rejected, and the CLI prints both telemetry and report hashes.
+
+Output is staged in the destination directory, flushed, and published as one
+complete file. Existing output is preserved unless `--overwrite` is explicit;
+symlink and non-regular destinations are rejected. These properties make a
+report replayable and reviewable. They do not make the triage causal or turn
+the synthetic truth into detector input.
