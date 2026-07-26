@@ -27,7 +27,7 @@ def _sha256_path(path: Path) -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cowbot",
-        description="Replayable causal triage for multivariate telemetry.",
+        description="Graph-informed replayable triage for telemetry.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

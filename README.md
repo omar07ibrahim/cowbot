@@ -1,13 +1,15 @@
 # COWBOT
 
-COWBOT is a causal online watchdog for multivariate service telemetry. The
-project is being built around one inspectable vertical slice: replay a bounded
-stream, detect a local mechanism change, and distinguish its likely origin from
-downstream symptoms using an operator-supplied dependency graph.
+COWBOT is a graph-informed, replayable mechanism watchdog for multivariate
+service telemetry. The project is being built around one inspectable vertical
+slice: replay a bounded stream, detect failure of a fitted local predictor, and
+distinguish its likely origin from downstream symptoms using an
+operator-supplied dependency graph.
 
-The current first slice provides only the deterministic telemetry contract and
-incident simulator. Detection, evidence accumulation, root-cause ranking, and
-the visual replay report are intentionally not claimed yet.
+The current slice provides the deterministic telemetry contract, incident
+simulator, and an importable calibrated mechanism monitor. A report CLI,
+committed replay evidence, and the visual incident report are intentionally not
+claimed yet.
 
 ## Reproduce the current slice
 
@@ -31,18 +33,28 @@ change; it is not embedded in the telemetry consumed by a detector.
 - a five-signal service scenario with a local `worker_cpu` mechanism shift and
   propagated queue, latency, and error symptoms;
 - bounded NDJSON parsing with canonical serialization and strict sequencing;
-- a CLI that refuses to overwrite evidence unless explicitly requested.
+- a CLI that refuses to overwrite evidence unless explicitly requested;
+- one standardized ridge predictor per metric, using its own lagged history and
+  only the graph parents available before the predicted sample;
+- disjoint fit, calibration, and monitoring partitions;
+- tie-conservative rank p-values and a bounded log power-wealth accumulator;
+- lag-constrained retrospective triage that suppresses a downstream alarm only
+  when an upstream alarm could reach it through the supplied graph in time.
 
 This simulator is not a production workload model and its injected root cause
 is not an empirical result. It exists to make every later detector decision
 replayable against known ground truth.
 
+The monitor deliberately does not receive the truth record. Its assumptions,
+equations, evidence semantics, and limitations are specified in
+[the method contract](docs/method.md).
+
 ## Direction
 
-The next slices will add a lag-aware local predictor, calibration-only
-nonconformity scores, sequential evidence accounting, and graph-constrained
-triage. Claims about false-alarm control will remain tied to their statistical
-assumptions rather than presented as operational guarantees.
+The next slices will add a canonical report serializer, terminal workflow,
+committed replay evidence, and source-derived visuals. Claims about false-alarm
+control remain tied to their statistical assumptions rather than presented as
+operational guarantees.
 
 ## License
 

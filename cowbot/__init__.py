@@ -1,4 +1,4 @@
-"""Causal online watchdog primitives."""
+"""Graph-informed replayable watchdog primitives."""
 
 from .contracts import (
     Edge,
@@ -7,13 +7,17 @@ from .contracts import (
     StreamSchema,
     ValidationError,
 )
+from .monitor import MonitorConfig, MonitorReport, monitor_stream
 
 __all__ = [
     "Edge",
     "Metric",
+    "MonitorConfig",
+    "MonitorReport",
     "Sample",
     "StreamSchema",
     "ValidationError",
+    "monitor_stream",
 ]
 
 __version__ = "0.1.0"
