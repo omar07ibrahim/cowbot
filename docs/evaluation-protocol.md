@@ -81,3 +81,8 @@ the result codec, or the acceptance decision has been implemented. Those are
 separate reviewable slices. The holdout seeds must not be run during their
 implementation; unit tests may validate derivation and shapes without
 consuming scenario outputs.
+
+The [source-derived protocol diagram](protocol-visual-evidence.md) makes this
+frozen workflow visible without entering the reserved result namespace. Its
+separate manifest binds the exact protocol semantics to one accessible SVG and
+states `contains_results: false`.

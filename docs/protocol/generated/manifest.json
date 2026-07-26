@@ -1,0 +1,42 @@
+{
+  "claim_boundary": {
+    "contains_results": false,
+    "description": "architecture, windows, endpoints, and pre-registered acceptance counts only; the protocol remains unrun",
+    "protocol_status": "frozen-unrun"
+  },
+  "derived_counts": {
+    "paired_seeds": 128,
+    "required_seed_arm_rows": 256,
+    "worked_seed_exclusions": [
+      13,
+      20260725
+    ]
+  },
+  "format": "cowbot.protocol_visual_manifest.v1",
+  "generator": {
+    "path": "tools/render_protocol_visual.py",
+    "runtime_dependencies": "Python standard library + repository protocol model",
+    "source_data_policy": "evaluation/protocol.v1.json only, through cowbot.evaluation_protocol.read_frozen_protocol"
+  },
+  "outputs": [
+    {
+      "bytes": 9837,
+      "media_type": "image/svg+xml",
+      "path": "docs/protocol/generated/frozen-unrun-protocol-flow.svg",
+      "sha256": "2177aee75e519b9a340a0c3d402ad3b4ac1de3a619603b0a017ee0e39d4628f4"
+    }
+  ],
+  "protocol": {
+    "protocol_id": "queue-saturation-paired-holdout-v1",
+    "semantic_sha256": "af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427",
+    "status": "frozen-unrun"
+  },
+  "source_inputs": [
+    {
+      "canonical_bytes": 1811,
+      "media_type": "application/json",
+      "path": "evaluation/protocol.v1.json",
+      "semantic_sha256": "af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427"
+    }
+  ]
+}
