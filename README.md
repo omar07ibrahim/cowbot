@@ -30,9 +30,9 @@ python -m pip install -e '.[dev]'
 
 The development extra pins the builder, Ruff, strict mypy, and branch coverage
 so the quality receipt does not depend on whichever tools happen to be
-installed globally. The current 218-test suite covers 2,315 of 2,417 runtime
-statements and 679 of 738 branch edges: 95.78% statement, 92.01% branch, and
-94.90% combined coverage against a 94.5% fail-under gate.
+installed globally. The current 383-test suite covers 3,498 of 3,629 runtime
+statements and 998 of 1,066 branch edges: 96.39% statement, 93.62% branch, and
+95.76% combined coverage against a 94.5% fail-under gate.
 
 ```bash
 make check
@@ -204,6 +204,31 @@ case or importing the source executor:
 python3 tools/record_holdout_harness_evidence.py --check
 ```
 
+## Review the one-shot execution boundary
+
+`tools/run_frozen_holdout.py` now implements the deliberately dangerous
+transition from a frozen, unrun protocol to one claimed result namespace. It
+has not been used to execute a frozen seed. Ordinary `python ...` invocation,
+CI, privileged execution, a dirty tree, a linked worktree, stale or incomplete
+distribution evidence, source/wheel inventory drift, a claimed namespace, and
+an incorrect operator confirmation all fail before evaluation.
+
+The only supported launcher is the executable file itself. Its absolute
+shebang establishes isolated, no-site, environment-ignoring, bytecode-free
+Python before repository imports. The safe inspection command is:
+
+```bash
+./tools/run_frozen_holdout.py --help
+```
+
+Help does not preflight, claim, or evaluate a case. A real invocation requires
+the exact commit/tree, protocol, plan, reproducible source export, both
+independent wheel builds, installed-smoke receipt, and derived confirmation
+token. The runner rechecks all mutable identities immediately before claiming
+the namespace, then imports the evaluator only inside an isolated worker from
+a sealed verified wheel. Read the complete
+[execution threat model](docs/frozen-execution.md) before considering a run.
+
 ## Engineering choices
 
 - **Versioned replay contract.** The first NDJSON record defines units, numeric
@@ -243,6 +268,11 @@ python3 tools/record_holdout_harness_evidence.py --check
   recorder runs only the public read-only preflight with executor/runtime
   imports blocked, checks the repository namespace before and after, and
   publishes its manifest last.
+- **One-shot execution boundary.** The runner binds an exact clean Git tree,
+  fixed source inventory, reproducible distribution receipts, a sealed wheel,
+  frozen protocol/plan digests, and an explicit confirmation token. It claims
+  the namespace before evaluator import, publishes summary last, verifies
+  anchored result files, and emits only a redacted receipt.
 
 The equations, assumptions, resource budgets, and report schema are specified
 in the [method contract](docs/method.md). Evidence generation and its
@@ -254,14 +284,18 @@ truth-isolation order are documented in
 ```text
 cowbot/                  contracts, simulator, monitor, report, CLI
 cowbot/evaluation_executor.py source-only in-memory frozen-plan executor
+cowbot/evaluation_publication.py one-shot claim and atomic result publication
+cowbot/evaluation_result_verifier.py anchored result-bundle verifier
 tests/                   behavioral, numeric, I/O, and evidence checks
 tools/record_evidence.py deterministic evidence + SVG recorder
 tools/render_protocol_visual.py result-free protocol documentation renderer
 tools/record_holdout_harness_evidence.py result-free harness evidence recorder
 tools/verify_distribution.py fail-closed wheel and sdist verifier
 tools/run_distribution_gate.py immutable-tree build + installed product gate
+tools/run_frozen_holdout.py guarded one-shot frozen evaluator launcher
 docs/method.md           statistical and operational claim contract
 docs/distribution-integrity.md packaging threat model and receipt contract
+docs/frozen-execution.md one-shot runner trust and failure boundaries
 docs/evidence/generated/ real CLI outputs, boundary record, hash manifest
 docs/visuals/generated/  six source-derived accessible figures
 docs/protocol/generated/ frozen protocol SVG + exact source/output manifest
@@ -274,11 +308,12 @@ The simulator is not a production workload model. Missing values, dynamic
 schemas, graph discovery, online model updates, and contemporaneous edges are
 unsupported. A wrong or incomplete graph can produce wrong triage. Broad
 multi-seed evaluation is pre-registered and its result-free harness is
-implemented. A source-only executor exists, but it has never run the frozen
-population; no frozen-holdout result publisher, result files, summary, or
-outcome visual exists, and the evaluation remains `frozen-unrun`. Throughput
-claims and operational validation remain future work and should use data not
-tuned against this included incident.
+implemented. The source executor, result codec, one-shot publisher, anchored
+verifier, and guarded runner now exist, but none has run the frozen population.
+No result files, summary, run receipt, or outcome visual exists, and the
+evaluation remains `frozen-unrun`. Throughput claims and operational validation
+remain future work and should use data not tuned against this included
+incident.
 
 ## License
 

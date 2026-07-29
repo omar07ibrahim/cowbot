@@ -135,11 +135,15 @@ it. The separate `evaluation_executor` module can validate the exact frozen
 protocol/plan, execute paired arms sequentially in memory, and return a sealed
 complete canonical row set. It has no filesystem, CLI, environment,
 subprocess, network, clock, logging, or partial-iterator surface, and it has
-never run a frozen seed. A frozen-holdout result publisher, summary artifact,
-overwrite behavior, result files, and outcome visuals remain absent. Harness
-unit tests use synthetic row documents and pure arithmetic; executor tests use
-controlled test doubles or only the two disclosed worked seeds excluded from
-the holdout population. No test materializes `evaluation/results`.
+never run a frozen seed. A separate one-shot publisher, canonical result codec,
+anchored verifier, and guarded runner are implemented; this harness does not
+import or invoke them. They have not claimed the namespace or run the frozen
+population, so result files, summary artifacts, run receipts, and outcome
+visuals remain absent. Harness unit tests use synthetic row documents and pure
+arithmetic; executor tests use controlled test doubles or only the two
+disclosed worked seeds excluded from the holdout population. No test
+in this harness or executor slice runs a frozen seed or materializes the
+repository's reserved `evaluation/results` namespace.
 
 ## Reproducible harness evidence
 

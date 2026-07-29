@@ -4,8 +4,10 @@ This document pre-registered the first broad synthetic evaluation before its
 control generator, evaluator, result codec, or result visualizer existed. The
 paired no-injection control generator is now implemented as a separate
 source-only slice. A pure in-memory executor and canonical per-arm row codec
-now also exist, but neither has been used to run a frozen seed. There is still
-no frozen-holdout result publisher, summary artifact, or outcome visual. The
+now also exist, but neither has been used to run a frozen seed. There is now
+a guarded one-shot publisher, an anchored result verifier, and an isolated
+runner. None has claimed the reserved namespace or run the frozen population,
+so there is still no summary artifact, run receipt, or outcome visual. The
 protocol remains a design and anti-cherry-picking artifact, not an evaluation
 result.
 
@@ -94,11 +96,12 @@ pre-disclosed worked seeds excluded from the holdout population; full-plan
 executor tests replace case execution with controlled test doubles. The
 executor validates the exact protocol and plan, executes paired arms only when
 explicitly called, produces one complete in-memory tuple of canonical rows,
-and performs no filesystem or publication I/O. No frozen incident/control
-stream has been generated or monitored, no acceptance outcome has been
-produced, and no frozen-holdout result publisher, summary artifact, or outcome
-visual exists. The default preflight and evidence recorder do not import or
-invoke the executor.
+and performs no filesystem or publication I/O. The separate one-shot
+publisher, anchored verifier, and guarded runner are implemented, but the
+default preflight and evidence recorder do not import or invoke them. No frozen
+incident/control stream has been generated or monitored, no acceptance outcome
+has been produced, and no result file, summary artifact, run receipt, or
+outcome visual exists.
 
 The [source-derived protocol diagram](protocol-visual-evidence.md) makes this
 frozen workflow visible without entering the reserved result namespace. Its
