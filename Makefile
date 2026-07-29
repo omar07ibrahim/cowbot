@@ -1,5 +1,5 @@
 .PHONY: check lint typecheck coverage test simulate report evidence evidence-check
-.PHONY: holdout-evidence holdout-evidence-check clean
+.PHONY: holdout-evidence holdout-evidence-check distribution-check clean
 
 PYTHON ?= python3
 
@@ -44,6 +44,9 @@ holdout-evidence:
 
 holdout-evidence-check:
 	$(PYTHON) tools/record_holdout_harness_evidence.py --check
+
+distribution-check:
+	$(PYTHON) -B tools/run_distribution_gate.py
 
 clean:
 	rm -rf artifacts build dist

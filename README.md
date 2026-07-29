@@ -30,10 +30,9 @@ python -m pip install -e '.[dev]'
 
 The development extra pins the builder, Ruff, strict mypy, and branch coverage
 so the quality receipt does not depend on whichever tools happen to be
-installed globally. The current 180-test suite covers 2,000 of 2,091 runtime
-statements
-and 610 of 664 branch edges: 95.65% statement, 91.87% branch, and 94.74%
-combined coverage against a 94.5% fail-under gate.
+installed globally. The current 187-test suite covers 2,000 of 2,091 runtime
+statements and 610 of 664 branch edges: 95.65% statement, 91.87% branch, and
+94.74% combined coverage against a 94.5% fail-under gate.
 
 ```bash
 make check
@@ -41,7 +40,15 @@ make report
 python -m cowbot inspect artifacts/queue-saturation.ndjson
 make evidence-check
 make holdout-evidence-check
+make distribution-check
 ```
+
+The distribution gate exports one immutable Git tree twice, requires
+byte-identical independently built wheels, runs the complete tests and
+evidence checks from the verified sdist, then exercises the installed
+`cowbot` entry point in a fresh environment. Its private receipts bind the
+tree, build epoch, wheel, telemetry, truth, and report digests. Read the
+[distribution integrity contract](docs/distribution-integrity.md).
 
 The explicit detector command is:
 
@@ -220,6 +227,10 @@ python3 tools/record_holdout_harness_evidence.py --check
   public CLI in a secret-free environment, generates source-derived SVGs, hashes
   every payload and source input, and checks byte identity without touching
   tracked artifacts.
+- **Verified distribution boundary.** One resolved Git tree feeds two isolated
+  build roots. The gate validates raw ZIP/gzip/USTAR framing, exact metadata and
+  source inventory, byte-identical wheels, the extracted sdist, and the real
+  installed CLI before writing linked private receipts.
 - **Result-free implementation boundary.** The holdout planner, strict row
   decoder, pessimistic reducer, and preflight import no simulator, monitor,
   report publisher, or result writer. Their evidence recorder runs only the
@@ -239,7 +250,10 @@ tests/                   behavioral, numeric, I/O, and evidence checks
 tools/record_evidence.py deterministic evidence + SVG recorder
 tools/render_protocol_visual.py result-free protocol documentation renderer
 tools/record_holdout_harness_evidence.py result-free harness evidence recorder
+tools/verify_distribution.py fail-closed wheel and sdist verifier
+tools/run_distribution_gate.py immutable-tree build + installed product gate
 docs/method.md           statistical and operational claim contract
+docs/distribution-integrity.md packaging threat model and receipt contract
 docs/evidence/generated/ real CLI outputs, boundary record, hash manifest
 docs/visuals/generated/  six source-derived accessible figures
 docs/protocol/generated/ frozen protocol SVG + exact source/output manifest

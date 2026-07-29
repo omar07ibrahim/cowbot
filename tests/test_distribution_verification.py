@@ -7,8 +7,10 @@ import gzip
 import hashlib
 import io
 import json
+import os
 import stat
 import struct
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -17,7 +19,7 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-from tools import verify_distribution
+from tools import run_distribution_gate, verify_distribution
 
 
 def _metadata(config: verify_distribution.ProjectConfig) -> bytes:
@@ -1121,6 +1123,175 @@ class DistributionVerificationTests(unittest.TestCase):
         for fragment in expected_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, manifest)
+
+
+class DistributionGateUnitTests(unittest.TestCase):
+    def test_safe_environment_drops_host_secrets_and_hardens_python_pip(
+        self,
+    ) -> None:
+        hostile = {
+            "AWS_ACCESS_KEY_ID": "private",
+            "GITHUB_TOKEN": "private",
+            "HOME": "/private/home",
+            "HTTPS_PROXY": "http://example.invalid",
+            "PATH": "/usr/bin",
+        }
+        with mock.patch.dict(os.environ, hostile, clear=True):
+            environment = run_distribution_gate._safe_environment(source_date_epoch=123)
+
+        self.assertNotIn("AWS_ACCESS_KEY_ID", environment)
+        self.assertNotIn("GITHUB_TOKEN", environment)
+        self.assertNotIn("HTTPS_PROXY", environment)
+        self.assertEqual(environment["HOME"], "/nonexistent")
+        self.assertEqual(environment["SOURCE_DATE_EPOCH"], "123")
+        self.assertEqual(environment["PYTHONNOUSERSITE"], "1")
+        self.assertEqual(environment["PIP_CONFIG_FILE"], os.devnull)
+
+    def test_source_date_epoch_requires_a_nonnegative_explicit_value(
+        self,
+    ) -> None:
+        self.assertEqual(run_distribution_gate._source_date_epoch(None, 0), 0)
+        with self.assertRaisesRegex(
+            run_distribution_gate.GateError,
+            "non-negative",
+        ):
+            run_distribution_gate._source_date_epoch(None, -1)
+        with self.assertRaisesRegex(
+            run_distribution_gate.GateError,
+            "required",
+        ):
+            run_distribution_gate._source_date_epoch(None, None)
+
+    def test_json_decoder_requires_utf8_object_and_finite_numbers(self) -> None:
+        self.assertEqual(
+            run_distribution_gate._decode_json(b'{"ok":true}', label="fixture"),
+            {"ok": True},
+        )
+        cases = (
+            (b"[]", "JSON object"),
+            (b'{"value":NaN}', "non-finite JSON"),
+            ('{"ok": true}'.encode("utf-16"), "UTF-8 JSON"),
+        )
+        for payload, message in cases:
+            with (
+                self.subTest(message=message),
+                self.assertRaisesRegex(run_distribution_gate.GateError, message),
+            ):
+                run_distribution_gate._decode_json(payload, label="fixture")
+
+    def test_source_resolution_freezes_tree_commit_and_timestamp(self) -> None:
+        resolved_oid = "d" * 40
+        tree_oid = "a" * 40
+        commit_oid = "b" * 40
+        responses = (
+            subprocess.CompletedProcess((), 0, f"{resolved_oid}\n".encode(), b""),
+            subprocess.CompletedProcess((), 0, f"{commit_oid}\n".encode(), b""),
+            subprocess.CompletedProcess((), 0, f"{tree_oid}\n".encode(), b""),
+            subprocess.CompletedProcess((), 0, b"456\n", b""),
+        )
+        with mock.patch.object(
+            run_distribution_gate,
+            "_run",
+            side_effect=responses,
+        ) as run:
+            source = run_distribution_gate._resolve_source("-candidate", None)
+
+        self.assertEqual(
+            source,
+            run_distribution_gate.SourceIdentity(
+                tree_oid=tree_oid,
+                commit_oid=commit_oid,
+                source_date_epoch=456,
+            ),
+        )
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(
+            commands[0][-2:],
+            ("--end-of-options", "-candidate^{object}"),
+        )
+        self.assertEqual(
+            commands[1][-2:],
+            ("--end-of-options", f"{resolved_oid}^{{commit}}"),
+        )
+        self.assertEqual(commands[2][-1], f"{commit_oid}^{{tree}}")
+        self.assertEqual(commands[3][-1], commit_oid)
+
+    def test_build_paths_export_one_tree_into_two_isolated_sources(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        work_root = Path(temporary.name)
+        source = run_distribution_gate.SourceIdentity(
+            tree_oid="c" * 40,
+            commit_oid=None,
+            source_date_epoch=789,
+        )
+
+        def extract(_archive: Path, destination: Path) -> None:
+            destination.mkdir(mode=0o700)
+
+        with (
+            mock.patch.object(run_distribution_gate, "_run") as run,
+            mock.patch.object(
+                run_distribution_gate,
+                "_extract_git_archive",
+                side_effect=extract,
+            ) as extract_archive,
+        ):
+            artifacts = run_distribution_gate._build_artifacts(
+                work_root,
+                source=source,
+            )
+
+        self.assertNotEqual(artifacts.source_primary, artifacts.source_rebuild)
+        self.assertNotEqual(artifacts.source_primary, run_distribution_gate.ROOT)
+        self.assertNotEqual(artifacts.source_rebuild, run_distribution_gate.ROOT)
+        destinations = [call.args[1] for call in extract_archive.call_args_list]
+        self.assertEqual(
+            destinations,
+            [artifacts.source_primary, artifacts.source_rebuild],
+        )
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[0][-1], source.tree_oid)
+        self.assertEqual(commands[1][-1], source.tree_oid)
+        self.assertEqual(
+            run.call_args_list[2].kwargs["cwd"],
+            artifacts.source_primary,
+        )
+        self.assertEqual(
+            run.call_args_list[3].kwargs["cwd"],
+            artifacts.source_rebuild,
+        )
+
+    def test_private_receipt_is_exclusive_and_mode_0600(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        receipt = Path(temporary.name) / "receipt.json"
+
+        run_distribution_gate._write_private_receipt(receipt, b"{}\n")
+
+        self.assertEqual(receipt.read_bytes(), b"{}\n")
+        self.assertEqual(stat.S_IMODE(receipt.stat().st_mode), 0o600)
+        with self.assertRaisesRegex(
+            run_distribution_gate.GateError,
+            "cannot be written safely",
+        ):
+            run_distribution_gate._write_private_receipt(receipt, b"other")
+
+    def test_main_normalizes_verifier_failure_without_traceback(self) -> None:
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(
+                run_distribution_gate,
+                "run_gate",
+                side_effect=verify_distribution.VerificationError("unsafe archive"),
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            result = run_distribution_gate.main([])
+
+        self.assertEqual(result, 1)
+        self.assertIn("unsafe archive", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
 
 if __name__ == "__main__":

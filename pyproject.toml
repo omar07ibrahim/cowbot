@@ -36,6 +36,7 @@ python_version = "3.11"
 strict = true
 files = [
     "cowbot",
+    "tools/run_distribution_gate.py",
     "tools/verify_distribution.py",
 ]
 

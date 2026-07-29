@@ -85,14 +85,14 @@
   },
   "source_inputs": [
     {
-      "bytes": 1169,
+      "bytes": 1254,
       "path": "Makefile",
-      "sha256": "d34656a487db3ca7a7dd0d5c2a6ef467d1a258d01be2f16d01994020df31434e"
+      "sha256": "9d11a34ade8c1e95047f68be25fca15e94766ecba0da71de1430a5d5e2541efe"
     },
     {
-      "bytes": 883,
+      "bytes": 921,
       "path": "pyproject.toml",
-      "sha256": "99c1819c812205464e5be30502f982ebee25c10cf21fa1f446d32bd617458c5b"
+      "sha256": "a7e93296621797721b2d8219a14b28f14bb92367a1b67ff42b9a129bd4617b8f"
     },
     {
       "bytes": 1943,
