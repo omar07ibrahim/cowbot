@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .contracts import Edge, Metric, Sample, StreamSchema, ValidationError
 
@@ -44,14 +44,44 @@ class DeterministicNoise:
         return sum(self.uniform() for _ in range(12)) - 6.0
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, repr=False)
 class IncidentTruth:
     scenario: str
-    seed: int
+    seed: int = field(repr=False)
     samples: int
     onset_index: int
     root_metric: str
     mechanism: str
+
+    def __repr__(self) -> str:
+        return (
+            "IncidentTruth("
+            f"scenario={self.scenario!r}, "
+            "seed='<redacted>', "
+            f"samples={self.samples}, "
+            f"onset_index={self.onset_index}, "
+            f"root_metric={self.root_metric!r}, "
+            f"mechanism={self.mechanism!r})"
+        )
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class ControlTruth:
+    """Paired no-injection identity with a log-safe seed representation."""
+
+    scenario: str
+    seed: int = field(repr=False)
+    samples: int
+    mechanism: str
+
+    def __repr__(self) -> str:
+        return (
+            "ControlTruth("
+            f"scenario={self.scenario!r}, "
+            "seed='<redacted>', "
+            f"samples={self.samples}, "
+            f"mechanism={self.mechanism!r})"
+        )
 
 
 def queue_saturation_schema() -> StreamSchema:
@@ -75,13 +105,7 @@ def queue_saturation_schema() -> StreamSchema:
     )
 
 
-def queue_saturation(
-    *,
-    samples: int = 360,
-    onset_index: int = 220,
-    seed: int = 20260725,
-) -> tuple[StreamSchema, Iterator[Sample], IncidentTruth]:
-    _validate_seed(seed)
+def _validate_samples(samples: int) -> None:
     if (
         isinstance(samples, bool)
         or not isinstance(samples, int)
@@ -91,6 +115,16 @@ def queue_saturation(
         raise ValidationError(
             f"samples must be an integer in [{MIN_SAMPLES}, {MAX_SAMPLES}]"
         )
+
+
+def queue_saturation(
+    *,
+    samples: int = 360,
+    onset_index: int = 220,
+    seed: int = 20260725,
+) -> tuple[StreamSchema, Iterator[Sample], IncidentTruth]:
+    _validate_seed(seed)
+    _validate_samples(samples)
     if (
         isinstance(onset_index, bool)
         or not isinstance(onset_index, int)
@@ -110,7 +144,44 @@ def queue_saturation(
         root_metric="worker_cpu",
         mechanism="cooling loss raises the worker CPU baseline",
     )
-    return schema, _queue_saturation_samples(schema, truth), truth
+    return (
+        schema,
+        _queue_saturation_samples(
+            schema,
+            samples=samples,
+            seed=seed,
+            onset_index=onset_index,
+        ),
+        truth,
+    )
+
+
+def queue_saturation_control(
+    *,
+    samples: int = 360,
+    seed: int = 20260725,
+) -> tuple[StreamSchema, Iterator[Sample], ControlTruth]:
+    """Return the paired healthy mechanism without the cooling-loss injection."""
+
+    _validate_seed(seed)
+    _validate_samples(samples)
+    schema = queue_saturation_schema()
+    truth = ControlTruth(
+        scenario="queue-saturation-control",
+        seed=seed,
+        samples=samples,
+        mechanism="paired healthy mechanism with no injected cooling loss",
+    )
+    return (
+        schema,
+        _queue_saturation_samples(
+            schema,
+            samples=samples,
+            seed=seed,
+            onset_index=None,
+        ),
+        truth,
+    )
 
 
 def _triangle(index: int, *, period: int) -> float:
@@ -126,9 +197,12 @@ def _clamp(value: float, minimum: float, maximum: float) -> float:
 
 def _queue_saturation_samples(
     schema: StreamSchema,
-    truth: IncidentTruth,
+    *,
+    samples: int,
+    seed: int,
+    onset_index: int | None,
 ) -> Iterator[Sample]:
-    noise = DeterministicNoise(truth.seed)
+    noise = DeterministicNoise(seed)
     previous = {
         "request_rate": 100.0,
         "worker_cpu": 0.58,
@@ -137,11 +211,13 @@ def _queue_saturation_samples(
         "error_rate": 0.002,
     }
 
-    for index in range(truth.samples):
+    for index in range(samples):
         request_rate = (
             94.0 + 18.0 * _triangle(index, period=60) + 2.4 * noise.normalish()
         )
-        incident_offset = 0.235 if index >= truth.onset_index else 0.0
+        incident_offset = (
+            0.235 if onset_index is not None and index >= onset_index else 0.0
+        )
         worker_cpu = (
             0.12
             + 0.00445 * previous["request_rate"]

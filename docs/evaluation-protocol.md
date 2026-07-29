@@ -1,8 +1,10 @@
 # Paired holdout protocol v1
 
-This document pre-registers the first broad synthetic evaluation before its
-control generator, evaluator, result codec, or result visualizer exists. It is
-a design and anti-cherry-picking artifact, not an evaluation result.
+This document pre-registered the first broad synthetic evaluation before its
+control generator, evaluator, result codec, or result visualizer existed. The
+paired no-injection control generator is now implemented as a separate
+source-only slice, without running any frozen seed. The protocol remains a
+design and anti-cherry-picking artifact, not an evaluation result.
 
 The machine contract is
 [`evaluation/protocol.v1.json`](../evaluation/protocol.v1.json). Its canonical
@@ -83,11 +85,12 @@ aliases such as JSON booleans for integers, non-finite values, path traversal,
 oversized input, symlinked protocol files, schedule drift, threshold drift,
 and any change to the fixed case count.
 
-No claim in this document says that `queue_saturation_control`, the evaluator,
-the result codec, or the acceptance decision has been implemented. Those are
-separate reviewable slices. The holdout seeds must not be run during their
-implementation; unit tests may validate derivation and shapes without
-consuming scenario outputs.
+`queue_saturation_control` is implemented and tested only with the two
+pre-disclosed worked seeds excluded from the holdout population. No claim in
+this document says that the evaluator, result codec, or acceptance decision
+has been implemented. Those remain separate reviewable slices. The holdout
+seeds must not be run during their implementation; unit tests may validate
+derivation and shapes without consuming frozen scenario outputs.
 
 The [source-derived protocol diagram](protocol-visual-evidence.md) makes this
 frozen workflow visible without entering the reserved result namespace. Its

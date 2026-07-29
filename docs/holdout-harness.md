@@ -124,9 +124,11 @@ caller's global decimal precision and rounding mode cannot change the result.
 
 ## What remains intentionally absent
 
-This contract does not implement `queue_saturation_control`, an evaluator, a
-result codec, publication, overwrite behavior, or result visuals. Unit tests
-use synthetic row documents and pure arithmetic; they never call a scenario,
+The paired `queue_saturation_control` generator now exists in the separate
+runtime scenario module, but this result-free harness does not import or invoke
+it. This contract still does not implement an evaluator, result codec,
+publication, overwrite behavior, or result visuals. Harness unit tests use
+synthetic row documents and pure arithmetic; they never call a scenario,
 monitor, or report function and never materialize `evaluation/results`.
 
 ## Reproducible harness evidence

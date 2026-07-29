@@ -30,9 +30,9 @@ python -m pip install -e '.[dev]'
 
 The development extra pins the builder, Ruff, strict mypy, and branch coverage
 so the quality receipt does not depend on whichever tools happen to be
-installed globally. The current 187-test suite covers 2,000 of 2,091 runtime
-statements and 610 of 664 branch edges: 95.65% statement, 91.87% branch, and
-94.74% combined coverage against a 94.5% fail-under gate.
+installed globally. The current 195-test suite covers 2,018 of 2,109 runtime
+statements and 610 of 664 branch edges: 95.69% statement, 91.87% branch, and
+94.77% combined coverage against a 94.5% fail-under gate.
 
 ```bash
 make check

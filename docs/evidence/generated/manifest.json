@@ -135,9 +135,9 @@
       "sha256": "39287d48b4ef2730a81bed38c118681e2c8923d595f648cfa35d31c7b32d2072"
     },
     {
-      "bytes": 5566,
+      "bytes": 7452,
       "path": "cowbot/scenario.py",
-      "sha256": "0c9338baac65e557d63bc96695409637c192fdbb9b65d6e06ee67bbc6fd81f73"
+      "sha256": "04b6fbe606d63ecd8b1481ee098e9f2a8ac9b61de5b6cf9d41724b7b45b42a28"
     },
     {
       "bytes": 11976,
