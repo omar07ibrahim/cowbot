@@ -18,6 +18,7 @@ cowbot = "cowbot.cli:main"
 
 [project.optional-dependencies]
 dev = [
+    "build==1.5.0",
     "coverage[toml]==7.15.2",
     "mypy==2.3.0",
     "ruff==0.16.0",
@@ -33,7 +34,10 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["cowbot"]
+files = [
+    "cowbot",
+    "tools/verify_distribution.py",
+]
 
 [tool.coverage.run]
 branch = true

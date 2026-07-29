@@ -1,0 +1,12 @@
+include .gitignore
+include LICENSE
+include MANIFEST.in
+include Makefile
+include README.md
+include pyproject.toml
+
+recursive-include cowbot *.py
+recursive-include docs *.json *.md *.ndjson *.svg *.txt
+recursive-include evaluation *.json
+recursive-include tests *.py
+recursive-include tools *.py
