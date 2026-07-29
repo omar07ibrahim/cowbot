@@ -220,6 +220,14 @@ class EvaluationReporting:
 
 
 @dataclass(frozen=True, slots=True)
+class InclusiveWindow:
+    """One explicitly frozen inclusive decision window."""
+
+    start: int
+    end: int
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationProtocol:
     """Immutable, pre-result protocol decoded from the committed JSON."""
 
@@ -229,6 +237,8 @@ class EvaluationProtocol:
     worked_seed_exclusions: tuple[int, ...]
     seed_schedule: SeedSchedule
     maximum_detection_delay_samples: int
+    incident_pre_onset_false_alarm_window: InclusiveWindow
+    control_false_alarm_window: InclusiveWindow
     acceptance_counts: tuple[tuple[str, int], ...]
     reporting: EvaluationReporting
     result_paths: tuple[str, str]
@@ -511,34 +521,34 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
         decision["control_false_alarm_window"],
         _WINDOW_FIELDS,
     )
+    incident_pre_onset_window = InclusiveWindow(
+        start=_integer(
+            pre_window["start_inclusive"],
+            minimum=0,
+            maximum=incident_arm.samples - 1,
+        ),
+        end=_integer(
+            pre_window["end_inclusive"],
+            minimum=0,
+            maximum=incident_arm.samples - 1,
+        ),
+    )
+    control_false_alarm_window = InclusiveWindow(
+        start=_integer(
+            control_window["start_inclusive"],
+            minimum=0,
+            maximum=control_arm.samples - 1,
+        ),
+        end=_integer(
+            control_window["end_inclusive"],
+            minimum=0,
+            maximum=control_arm.samples - 1,
+        ),
+    )
     if (
         maximum_detection_delay != 40
-        or (
-            _integer(
-                pre_window["start_inclusive"],
-                minimum=0,
-                maximum=incident_arm.samples - 1,
-            ),
-            _integer(
-                pre_window["end_inclusive"],
-                minimum=0,
-                maximum=incident_arm.samples - 1,
-            ),
-        )
-        != (200, 219)
-        or (
-            _integer(
-                control_window["start_inclusive"],
-                minimum=0,
-                maximum=control_arm.samples - 1,
-            ),
-            _integer(
-                control_window["end_inclusive"],
-                minimum=0,
-                maximum=control_arm.samples - 1,
-            ),
-        )
-        != (200, 359)
+        or incident_pre_onset_window != InclusiveWindow(200, 219)
+        or control_false_alarm_window != InclusiveWindow(200, 359)
     ):
         _fail(ProtocolErrorCode.INVALID_VALUE)
 
@@ -599,6 +609,8 @@ def decode_evaluation_protocol(data: bytes | str) -> EvaluationProtocol:
         worked_seed_exclusions=exclusions,
         seed_schedule=schedule,
         maximum_detection_delay_samples=maximum_detection_delay,
+        incident_pre_onset_false_alarm_window=incident_pre_onset_window,
+        control_false_alarm_window=control_false_alarm_window,
         acceptance_counts=acceptance_counts,
         reporting=evaluation_reporting,
         result_paths=(summary_path, per_seed_path),
@@ -747,17 +759,24 @@ def assert_result_namespace_unclaimed(
     root: Path,
     protocol: EvaluationProtocol,
 ) -> None:
-    """Fail if any result file, result-prefix visual, or parent is claimed."""
+    """Fail if the one-shot result directory or result-prefix visual is claimed."""
 
     if not isinstance(root, Path) or type(protocol) is not EvaluationProtocol:
         _fail(ProtocolErrorCode.INVALID_VALUE)
-    for relative in protocol.result_paths:
-        path = PurePosixPath(relative)
-        parent = _existing_directory(root, path.parts[:-1])
-        if parent is None:
-            continue
-        if _lstat_or_none(parent / path.name) is not None:
-            _fail(ProtocolErrorCode.RESULT_NAMESPACE_CLAIMED)
+    result_parents = {
+        PurePosixPath(relative).parts[:-1] for relative in protocol.result_paths
+    }
+    if len(result_parents) != 1:
+        _fail(ProtocolErrorCode.INVALID_VALUE)
+    result_parent = next(iter(result_parents))
+    if not result_parent:
+        _fail(ProtocolErrorCode.INVALID_VALUE)
+    containing_directory = _existing_directory(root, result_parent[:-1])
+    if (
+        containing_directory is not None
+        and _lstat_or_none(containing_directory / result_parent[-1]) is not None
+    ):
+        _fail(ProtocolErrorCode.RESULT_NAMESPACE_CLAIMED)
 
     visual = PurePosixPath(protocol.visual_prefix)
     visual_parent = _existing_directory(root, visual.parts[:-1])

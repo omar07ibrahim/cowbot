@@ -52,7 +52,15 @@ EXPECTED_SOURCE_PATHS = (
     "cowbot/contracts.py",
     "cowbot/evaluation_protocol.py",
     "cowbot/evaluation_harness.py",
+    "cowbot/evaluation_executor.py",
     "tools/record_holdout_harness_evidence.py",
+)
+EXPECTED_RUNTIME_MODULES = (
+    "cowbot.evaluation_executor",
+    "cowbot.monitor",
+    "cowbot.report",
+    "cowbot.scenario",
+    "cowbot.stream",
 )
 EXPECTED_MEDIA_TYPES = {
     EXPECTED_ARTIFACT_PATHS[0]: "text/plain; charset=utf-8",
@@ -255,7 +263,7 @@ class HoldoutEvidenceBundleTests(unittest.TestCase):
             {
                 "contains_holdout_results": False,
                 "contains_holdout_seed_values": False,
-                "executor_available": False,
+                "executor_available": True,
                 "generator_invoked_holdout_execution": False,
                 "repository_namespace_scope": "inspected repository tree only",
                 "repository_result_namespace": "unclaimed",
@@ -299,7 +307,7 @@ class HoldoutEvidenceBundleTests(unittest.TestCase):
             decoded,
             {
                 "contains_results": False,
-                "executor_available": False,
+                "executor_available": True,
                 "pair_count": 128,
                 "plan_sha256": FROZEN_HOLDOUT_PLAN_SHA256,
                 "protocol_id": PROTOCOL_ID,
@@ -328,8 +336,12 @@ class HoldoutEvidenceBundleTests(unittest.TestCase):
         self.assertEqual(audit["blocked_run_exit_code"], 0)
         self.assertEqual(
             audit["blocked_runtime_modules"],
-            list(evidence.RUNTIME_MODULES),
+            list(EXPECTED_RUNTIME_MODULES),
         )
+        self.assertEqual(evidence.RUNTIME_MODULES, EXPECTED_RUNTIME_MODULES)
+        for module in EXPECTED_RUNTIME_MODULES:
+            with self.subTest(blocked_runtime_module=module):
+                self.assertIn(f'"{module}"', evidence._BLOCKED_PREFLIGHT)
         self.assertEqual(audit["command"], evidence.CLI_COMMAND)
         self.assertEqual(audit["exit_code"], 0)
         self.assertEqual(audit["repeat_count"], 2)
@@ -388,6 +400,8 @@ class HoldoutEvidenceBundleTests(unittest.TestCase):
                 "ACTUAL STDOUT",
                 "RUNTIME IMPORT GUARD",
                 "FROZEN · UNRUN",
+                "source executor exists · unrun · no results",
+                "has not been invoked",
             ),
             evidence.PLAN_VISUAL_PATH: (
                 "Canonical holdout plan integrity",

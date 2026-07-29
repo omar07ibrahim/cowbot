@@ -20,7 +20,7 @@ from decimal import (
 )
 from enum import StrEnum
 from pathlib import Path
-from typing import Final, NoReturn, cast
+from typing import Final, NoReturn, TypeAlias, cast
 
 from .evaluation_protocol import (
     PROTOCOL_ID,
@@ -39,6 +39,7 @@ FROZEN_HOLDOUT_PLAN_SHA256: Final = (
     "958c683c9ef0591c033a231d899de211d05802b58990745b3a1ad68ce030cea9"
 )
 MAX_HOLDOUT_ROW_BYTES: Final = 16 * 1024
+SOURCE_EXECUTOR_AVAILABLE: Final = True
 
 _PLAN_ACCEPTANCE_FIELDS: Final = frozenset(
     {
@@ -93,6 +94,7 @@ class HoldoutRowErrorCode(StrEnum):
     INVALID_VALUE = "invalid_value"
     IDENTITY_MISMATCH = "identity_mismatch"
     PLAN_MISMATCH = "plan_mismatch"
+    NON_CANONICAL = "non_canonical"
 
 
 class HoldoutRowError(ValueError):
@@ -242,6 +244,25 @@ class ValidatedHoldoutRow:
             f"{self.incident_pre_onset_false_alarm!r}, "
             f"control_false_alarm={self.control_false_alarm!r})"
         )
+
+
+@dataclass(frozen=True, slots=True)
+class IncidentHoldoutOutcomes:
+    """The exact completed incident-arm booleans."""
+
+    incident_detection: bool
+    timely_root_localization: bool
+    incident_pre_onset_false_alarm: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ControlHoldoutOutcomes:
+    """The exact completed control-arm boolean."""
+
+    control_false_alarm: bool
+
+
+HoldoutOutcomes: TypeAlias = IncidentHoldoutOutcomes | ControlHoldoutOutcomes
 
 
 @dataclass(frozen=True, slots=True)
@@ -454,13 +475,10 @@ def _exact_boolean_object(
     return cast(dict[str, bool], outcomes)
 
 
-def decode_holdout_row(
-    raw: bytes | str,
+def _validate_row_identity_inputs(
     expected: PlannedRow,
     plan_sha256: str,
-) -> ValidatedHoldoutRow:
-    """Strictly decode one row against its exact position in the plan."""
-
+) -> None:
     if (
         type(expected) is not PlannedRow
         or type(expected.row_index) is not int
@@ -470,10 +488,20 @@ def decode_holdout_row(
         or type(expected.arm) is not HoldoutArm
         or type(expected.seed_u64_hex) is not str
         or _LOWER_HEX_16.fullmatch(expected.seed_u64_hex) is None
+        or type(plan_sha256) is not str
+        or _LOWER_HEX_64.fullmatch(plan_sha256) is None
     ):
         _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
-    if type(plan_sha256) is not str or _LOWER_HEX_64.fullmatch(plan_sha256) is None:
-        _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
+
+
+def decode_holdout_row(
+    raw: bytes | str,
+    expected: PlannedRow,
+    plan_sha256: str,
+) -> ValidatedHoldoutRow:
+    """Strictly decode one row against its exact position in the plan."""
+
+    _validate_row_identity_inputs(expected, plan_sha256)
 
     document = _decode_row_document(raw)
     if frozenset(document) != _ROW_FIELDS:
@@ -562,6 +590,104 @@ def decode_holdout_row(
         incident_pre_onset_false_alarm=None,
         control_false_alarm=control["control_false_alarm"],
     )
+
+
+def encode_holdout_row(
+    expected: PlannedRow,
+    plan_sha256: str,
+    outcomes: HoldoutOutcomes | None,
+) -> bytes:
+    """Encode one exact compact ASCII row; ``None`` is a failed arm."""
+
+    _validate_row_identity_inputs(expected, plan_sha256)
+    if outcomes is None:
+        status = "failed"
+        outcome_document: dict[str, bool] | None = None
+    elif expected.arm is HoldoutArm.INCIDENT:
+        if type(outcomes) is not IncidentHoldoutOutcomes or any(
+            type(value) is not bool
+            for value in (
+                outcomes.incident_detection,
+                outcomes.timely_root_localization,
+                outcomes.incident_pre_onset_false_alarm,
+            )
+        ):
+            _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
+        if outcomes.timely_root_localization and not outcomes.incident_detection:
+            _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
+        status = "completed"
+        outcome_document = {
+            "incident_detection": outcomes.incident_detection,
+            "incident_pre_onset_false_alarm": (outcomes.incident_pre_onset_false_alarm),
+            "timely_root_localization": outcomes.timely_root_localization,
+        }
+    elif expected.arm is HoldoutArm.CONTROL:
+        if (
+            type(outcomes) is not ControlHoldoutOutcomes
+            or type(outcomes.control_false_alarm) is not bool
+        ):
+            _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
+        status = "completed"
+        outcome_document = {
+            "control_false_alarm": outcomes.control_false_alarm,
+        }
+    else:
+        _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
+
+    document = {
+        "arm": expected.arm.value,
+        "format": HOLDOUT_ROW_FORMAT,
+        "outcomes": outcome_document,
+        "pair_index": expected.pair_index,
+        "plan_sha256": plan_sha256,
+        "row_index": expected.row_index,
+        "seed_u64_hex": expected.seed_u64_hex,
+        "status": status,
+    }
+    try:
+        payload = json.dumps(
+            document,
+            ensure_ascii=True,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+    except (AttributeError, TypeError, ValueError, UnicodeError):
+        _row_fail(HoldoutRowErrorCode.INVALID_VALUE)
+    if len(payload) > MAX_HOLDOUT_ROW_BYTES:
+        _row_fail(HoldoutRowErrorCode.INPUT_TOO_LARGE)
+    decode_holdout_row(payload, expected, plan_sha256)
+    return payload
+
+
+def decode_canonical_holdout_row(
+    raw: bytes,
+    expected: PlannedRow,
+    plan_sha256: str,
+) -> ValidatedHoldoutRow:
+    """Decode a publication row and require byte-exact canonical encoding."""
+
+    if type(raw) is not bytes:
+        _row_fail(HoldoutRowErrorCode.INVALID_SHAPE)
+    validated = decode_holdout_row(raw, expected, plan_sha256)
+    outcomes: HoldoutOutcomes | None
+    if not validated.completed:
+        outcomes = None
+    elif validated.arm is HoldoutArm.INCIDENT:
+        outcomes = IncidentHoldoutOutcomes(
+            incident_detection=validated.incident_detection is True,
+            timely_root_localization=validated.timely_root_localization is True,
+            incident_pre_onset_false_alarm=(
+                validated.incident_pre_onset_false_alarm is True
+            ),
+        )
+    else:
+        outcomes = ControlHoldoutOutcomes(
+            control_false_alarm=validated.control_false_alarm is True,
+        )
+    if raw != encode_holdout_row(expected, plan_sha256, outcomes):
+        _row_fail(HoldoutRowErrorCode.NON_CANONICAL)
+    return validated
 
 
 def wilson_score_interval(
@@ -880,5 +1006,5 @@ def preflight_holdout(root: Path) -> HoldoutPreflight:
         row_count=plan.row_count,
         result_namespace="unclaimed",
         contains_results=False,
-        executor_available=False,
+        executor_available=SOURCE_EXECUTOR_AVAILABLE,
     )

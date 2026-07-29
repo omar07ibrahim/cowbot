@@ -138,6 +138,20 @@ class EvaluationProtocolTests(unittest.TestCase):
         self.assertEqual(protocol.control_arm.monitor_end_inclusive, 359)
         self.assertEqual(protocol.maximum_detection_delay_samples, 40)
         self.assertEqual(
+            (
+                protocol.incident_pre_onset_false_alarm_window.start,
+                protocol.incident_pre_onset_false_alarm_window.end,
+            ),
+            (200, 219),
+        )
+        self.assertEqual(
+            (
+                protocol.control_false_alarm_window.start,
+                protocol.control_false_alarm_window.end,
+            ),
+            (200, 359),
+        )
+        self.assertEqual(
             protocol.seed_schedule.namespace,
             "cowbot.queue-saturation.paired-holdout.v1",
         )
@@ -323,20 +337,25 @@ class EvaluationProtocolTests(unittest.TestCase):
         self.assertIsNone(missing.exception.__context__)
         self.assertNotIn("/private/", str(missing.exception))
 
-    def test_dangling_or_materialized_result_path_claims_namespace(self) -> None:
+    def test_empty_or_populated_result_directory_claims_namespace(self) -> None:
         protocol = read_frozen_protocol(ROOT)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            summary = root / protocol.result_paths[0]
-            summary.parent.mkdir(parents=True)
-            summary.symlink_to(root / "missing-target")
+        for unexpected_entry in (None, "unexpected.txt"):
+            with (
+                self.subTest(unexpected_entry=unexpected_entry),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                results = root / "evaluation" / "results"
+                results.mkdir(parents=True)
+                if unexpected_entry is not None:
+                    (results / unexpected_entry).write_bytes(b"untrusted\n")
 
-            with self.assertRaises(ProtocolError) as dangling:
-                assert_result_namespace_unclaimed(root, protocol)
-            self.assertEqual(
-                dangling.exception.code,
-                ProtocolErrorCode.RESULT_NAMESPACE_CLAIMED,
-            )
+                with self.assertRaises(ProtocolError) as claimed:
+                    assert_result_namespace_unclaimed(root, protocol)
+                self.assertEqual(
+                    claimed.exception.code,
+                    ProtocolErrorCode.RESULT_NAMESPACE_CLAIMED,
+                )
 
     def test_result_parent_symlink_or_prefixed_visual_claims_namespace(
         self,

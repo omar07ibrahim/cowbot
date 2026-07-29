@@ -21,13 +21,17 @@ from cowbot.evaluation_harness import (
     HOLDOUT_PLAN_FORMAT,
     HOLDOUT_ROW_FORMAT,
     MAX_HOLDOUT_ROW_BYTES,
+    ControlHoldoutOutcomes,
     HoldoutArm,
     HoldoutPlan,
     HoldoutRowError,
     HoldoutRowErrorCode,
+    IncidentHoldoutOutcomes,
     PlannedRow,
     build_frozen_holdout_plan,
+    decode_canonical_holdout_row,
     decode_holdout_row,
+    encode_holdout_row,
     preflight_holdout,
     reduce_holdout_rows,
     wilson_score_interval,
@@ -321,6 +325,137 @@ class RowDecoderTests(unittest.TestCase):
             expected,
             HoldoutRowErrorCode.INVALID_SHAPE,
         )
+
+    def test_encoder_owns_identity_and_exact_arm_outcomes(self) -> None:
+        incident_row = self.plan.rows[0]
+        control_row = self.plan.rows[1]
+        incident = IncidentHoldoutOutcomes(
+            incident_detection=True,
+            timely_root_localization=True,
+            incident_pre_onset_false_alarm=False,
+        )
+        control = ControlHoldoutOutcomes(control_false_alarm=False)
+
+        incident_payload = encode_holdout_row(
+            incident_row,
+            self.plan.plan_sha256,
+            incident,
+        )
+        control_payload = encode_holdout_row(
+            control_row,
+            self.plan.plan_sha256,
+            control,
+        )
+        failed_payload = encode_holdout_row(
+            incident_row,
+            self.plan.plan_sha256,
+            None,
+        )
+
+        self.assertEqual(
+            incident_payload,
+            canonical(row_document(self.plan, incident_row)),
+        )
+        self.assertEqual(
+            control_payload,
+            canonical(row_document(self.plan, control_row)),
+        )
+        self.assertEqual(
+            failed_payload,
+            canonical(
+                row_document(
+                    self.plan,
+                    incident_row,
+                    status="failed",
+                    outcomes=None,
+                )
+            ),
+        )
+        for expected, payload in (
+            (incident_row, incident_payload),
+            (control_row, control_payload),
+            (incident_row, failed_payload),
+        ):
+            with self.subTest(expected=expected.row_index):
+                self.assertNotIn(b"\n", payload)
+                decode_canonical_holdout_row(
+                    payload,
+                    expected,
+                    self.plan.plan_sha256,
+                )
+
+    def test_encoder_rejects_wrong_arm_types_and_impossible_localization(
+        self,
+    ) -> None:
+        cases = (
+            (
+                self.plan.rows[0],
+                ControlHoldoutOutcomes(control_false_alarm=False),
+            ),
+            (
+                self.plan.rows[1],
+                IncidentHoldoutOutcomes(
+                    incident_detection=False,
+                    timely_root_localization=False,
+                    incident_pre_onset_false_alarm=False,
+                ),
+            ),
+            (
+                self.plan.rows[0],
+                IncidentHoldoutOutcomes(
+                    incident_detection=False,
+                    timely_root_localization=True,
+                    incident_pre_onset_false_alarm=False,
+                ),
+            ),
+        )
+        for expected, outcomes in cases:
+            with (
+                self.subTest(row=expected.row_index),
+                self.assertRaises(HoldoutRowError) as raised,
+            ):
+                encode_holdout_row(
+                    expected,
+                    self.plan.plan_sha256,
+                    outcomes,
+                )
+            self.assertEqual(
+                raised.exception.code,
+                HoldoutRowErrorCode.INVALID_VALUE,
+            )
+
+    def test_publication_decoder_rejects_semantic_noncanonical_aliases(
+        self,
+    ) -> None:
+        expected = self.plan.rows[0]
+        canonical_payload = encoded_row(self.plan, expected)
+        document = json.loads(canonical_payload)
+        variants = (
+            b" " + canonical_payload,
+            json.dumps(document, sort_keys=False).encode("ascii"),
+            canonical_payload + b"\n",
+        )
+        for payload in variants:
+            with (
+                self.subTest(payload=payload[:20]),
+                self.assertRaises(HoldoutRowError) as raised,
+            ):
+                decode_canonical_holdout_row(
+                    payload,
+                    expected,
+                    self.plan.plan_sha256,
+                )
+            self.assertEqual(
+                raised.exception.code,
+                HoldoutRowErrorCode.NON_CANONICAL,
+            )
+        with self.assertRaises(HoldoutRowError) as raised:
+            decode_canonical_holdout_row(  # type: ignore[arg-type]
+                canonical_payload.decode("ascii"),
+                expected,
+                self.plan.plan_sha256,
+            )
+        self.assertEqual(raised.exception.code, HoldoutRowErrorCode.INVALID_SHAPE)
 
     def test_size_encoding_json_and_duplicate_keys_fail_redacted(self) -> None:
         expected = self.plan.rows[0]
@@ -884,7 +1019,7 @@ class PreflightTests(unittest.TestCase):
             json.loads(output),
             {
                 "contains_results": False,
-                "executor_available": False,
+                "executor_available": True,
                 "pair_count": 128,
                 "plan_sha256": FROZEN_HOLDOUT_PLAN_SHA256,
                 "protocol_id": "queue-saturation-paired-holdout-v1",

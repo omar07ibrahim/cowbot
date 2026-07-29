@@ -2,8 +2,9 @@
 """Record reproducible, result-free evidence for the holdout harness.
 
 The recorder runs only the public ``holdout-preflight`` command. It does not
-import the simulator, monitor, report publisher, or stream runtime, and it
-never decodes or reduces a frozen-population result row.
+import or invoke the holdout executor, simulator, monitor, report publisher,
+or stream runtime, and it never decodes or reduces a frozen-population result
+row.
 """
 
 from __future__ import annotations
@@ -69,9 +70,11 @@ SOURCE_PATHS = (
     "cowbot/contracts.py",
     "cowbot/evaluation_protocol.py",
     "cowbot/evaluation_harness.py",
+    "cowbot/evaluation_executor.py",
     "tools/record_holdout_harness_evidence.py",
 )
 RUNTIME_MODULES = (
+    "cowbot.evaluation_executor",
     "cowbot.monitor",
     "cowbot.report",
     "cowbot.scenario",
@@ -201,12 +204,19 @@ import runpy
 import sys
 
 blocked_absolute = frozenset({
+    "cowbot.evaluation_executor",
     "cowbot.monitor",
     "cowbot.report",
     "cowbot.scenario",
     "cowbot.stream",
 })
-blocked_relative = frozenset({"monitor", "report", "scenario", "stream"})
+blocked_relative = frozenset({
+    "evaluation_executor",
+    "monitor",
+    "report",
+    "scenario",
+    "stream",
+})
 original_import = builtins.__import__
 
 def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
@@ -385,7 +395,7 @@ def _capture_preflight(repo_root: Path) -> tuple[bytes, dict[str, object]]:
             "status",
         }
         or decoded.get("contains_results") is not False
-        or decoded.get("executor_available") is not False
+        or decoded.get("executor_available") is not True
         or decoded.get("result_namespace") != "unclaimed"
         or decoded.get("status") != PROTOCOL_STATUS
     ):
@@ -463,13 +473,16 @@ def _render_terminal(capture: bytes) -> bytes:
             _line(
                 502,
                 491,
-                "monitor · report · scenario · stream blocked",
+                "executor · monitor · report · scenario · stream blocked",
                 css_class="body",
             ),
             '<rect x="912" y="430" width="440" height="88" rx="12" class="unrun"/>',
             _line(934, 463, "FROZEN · UNRUN", css_class="unrun-text"),
             _line(
-                934, 491, "no executor · no results · no seeds shown", css_class="body"
+                934,
+                491,
+                "source executor exists · unrun · no results",
+                css_class="body",
             ),
             _line(
                 48,
@@ -486,8 +499,9 @@ def _render_terminal(capture: bytes) -> bytes:
         description=(
             "A terminal rendering derived from actual canonical public CLI "
             "stdout. It reports a frozen and unrun 128-pair plan, an "
-            "unclaimed repository result namespace, no executor, and no "
-            "results or seed values."
+            "unclaimed repository result namespace, and a source executor "
+            "that exists but has not been invoked. No results or seed values "
+            "are shown."
         ),
         width=1400,
         height=590,
@@ -814,7 +828,7 @@ def build_bundle(repo_root: Path) -> dict[str, bytes]:
         "claim_boundary": {
             "contains_holdout_results": False,
             "contains_holdout_seed_values": False,
-            "executor_available": False,
+            "executor_available": True,
             "generator_invoked_holdout_execution": False,
             "repository_namespace_scope": ("inspected repository tree only"),
             "repository_result_namespace": "unclaimed",

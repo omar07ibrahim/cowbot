@@ -30,9 +30,9 @@ python -m pip install -e '.[dev]'
 
 The development extra pins the builder, Ruff, strict mypy, and branch coverage
 so the quality receipt does not depend on whichever tools happen to be
-installed globally. The current 195-test suite covers 2,018 of 2,109 runtime
-statements and 610 of 664 branch edges: 95.69% statement, 91.87% branch, and
-94.77% combined coverage against a 94.5% fail-under gate.
+installed globally. The current 218-test suite covers 2,315 of 2,417 runtime
+statements and 679 of 738 branch edges: 95.78% statement, 92.01% branch, and
+94.90% combined coverage against a 94.5% fail-under gate.
 
 ```bash
 make check
@@ -139,7 +139,8 @@ The next evaluation is pre-registered and deliberately unrun. Its strict
 contract fixes 128 deterministic paired incident/control seeds, excludes the
 two disclosed worked seeds, requires all 256 seed-arm rows, and counts every
 missing or invalid case as a failure. No holdout scenario, control generator,
-evaluator, or result generator was run to make the figure below.
+source executor, publisher, or result generator was invoked on a frozen seed
+to make the figure below.
 
 ![Frozen, unrun paired-holdout protocol](docs/protocol/generated/frozen-unrun-protocol-flow.svg)
 
@@ -161,9 +162,11 @@ python3 tools/render_protocol_visual.py --check
 
 ## Inspect the result-free harness
 
-The implemented holdout slice still cannot run a case. It materializes the
-exact frozen row plan, validates future row documents, reduces adverse inputs
-over full denominators, and exposes one read-only repository preflight:
+The implementation now includes a pure, in-memory source executor for the
+exact frozen plan, but it has never been invoked on a frozen seed and is not a
+CLI or publisher. The separate result-free harness materializes the exact row
+plan, validates canonical row documents, reduces adverse inputs over full
+denominators, and exposes one read-only repository preflight:
 
 ```bash
 python -m cowbot holdout-preflight --root .
@@ -173,8 +176,8 @@ python -m cowbot holdout-preflight --root .
 
 *The terminal visual is rendered from actual canonical stdout. It states only
 what can be verified in the inspected repository: the protocol and plan
-digests, 128 pairs, 256 rows, an unclaimed result namespace, and the absence of
-an executor. It contains no seed or outcome values.*
+digests, 128 pairs, 256 rows, an unclaimed result namespace, and source
+executor availability. It contains no seed or outcome values.*
 
 ![Canonical holdout plan integrity](docs/harness/generated/holdout-plan-integrity.svg)
 
@@ -194,7 +197,7 @@ Read the raw [preflight capture](docs/harness/generated/holdout-preflight.cli.tx
 the exact [harness evidence manifest](docs/harness/generated/manifest.json),
 or the [evidence provenance guide](docs/holdout-evidence.md). Rebuild or verify
 the four result-free outputs and their manifest without executing a holdout
-case:
+case or importing the source executor:
 
 ```bash
 python3 tools/record_holdout_harness_evidence.py --check
@@ -233,9 +236,12 @@ python3 tools/record_holdout_harness_evidence.py --check
   installed CLI before writing linked private receipts.
 - **Result-free implementation boundary.** The holdout planner, strict row
   decoder, pessimistic reducer, and preflight import no simulator, monitor,
-  report publisher, or result writer. Their evidence recorder runs only the
-  public read-only preflight in an allowlisted environment, checks the
-  repository namespace before and after, and publishes its manifest last.
+  source executor, report publisher, or result writer. The executor is a
+  separate pure in-memory module with no filesystem, CLI, environment,
+  subprocess, network, clock, or logging boundary. The harness evidence
+  recorder runs only the public read-only preflight with executor/runtime
+  imports blocked, checks the repository namespace before and after, and
+  publishes its manifest last.
 
 The equations, assumptions, resource budgets, and report schema are specified
 in the [method contract](docs/method.md). Evidence generation and its
@@ -246,6 +252,7 @@ truth-isolation order are documented in
 
 ```text
 cowbot/                  contracts, simulator, monitor, report, CLI
+cowbot/evaluation_executor.py source-only in-memory frozen-plan executor
 tests/                   behavioral, numeric, I/O, and evidence checks
 tools/record_evidence.py deterministic evidence + SVG recorder
 tools/render_protocol_visual.py result-free protocol documentation renderer
@@ -266,9 +273,11 @@ The simulator is not a production workload model. Missing values, dynamic
 schemas, graph discovery, online model updates, and contemporaneous edges are
 unsupported. A wrong or incomplete graph can produce wrong triage. Broad
 multi-seed evaluation is pre-registered and its result-free harness is
-implemented, but no executor or result publisher exists and the evaluation
-remains unrun. Throughput claims and operational validation remain future work
-and should use data not tuned against this included incident.
+implemented. A source-only executor exists, but it has never run the frozen
+population; no frozen-holdout result publisher, result files, summary, or
+outcome visual exists, and the evaluation remains `frozen-unrun`. Throughput
+claims and operational validation remain future work and should use data not
+tuned against this included incident.
 
 ## License
 

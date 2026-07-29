@@ -2,9 +2,11 @@
 
 The holdout harness turns the frozen
 [`protocol.v1.json`](../evaluation/protocol.v1.json) into an immutable row
-plan, but it cannot execute that plan. It deliberately imports no scenario
-generator, monitor, or report publisher and contains no result writer. This
-keeps implementation review separate from the first view of holdout outcomes.
+plan, but the harness itself cannot execute that plan. It deliberately imports
+no scenario generator, monitor, source executor, or report publisher and
+contains no result writer. A separate pure in-memory executor now exists, but
+it has never been invoked on a frozen seed. This keeps implementation review
+separate from the first view of holdout outcomes.
 
 ## Reproducible plan
 
@@ -58,7 +60,7 @@ one canonical JSON line. Its exact fields state:
 | `row_count` | `256` |
 | `result_namespace` | `unclaimed` |
 | `contains_results` | `false` |
-| `executor_available` | `false` |
+| `executor_available` | `true` |
 
 Preflight neither creates directories nor writes files. A claimed result path,
 claimed result visual prefix, symlinked boundary, malformed protocol, or plan
@@ -67,11 +69,14 @@ drift fails closed through the protocol's redacted error contract.
 unclaimed in the repository tree being inspected; it cannot prove that no
 off-repository evaluation was ever run.
 
-## Future row boundary
+## Canonical row boundary
 
-`decode_holdout_row()` defines the future per-arm input boundary without
-producing any inputs. A row is at most 16 KiB and must be strict UTF-8 JSON
-with no duplicate, missing, or unknown keys. Its identity fields are:
+`encode_holdout_row()` produces exact compact ASCII for one planned arm, with
+sorted keys and no trailing newline. `decode_canonical_holdout_row()` requires
+byte-for-byte canonical form, while `decode_holdout_row()` enforces the
+semantic per-arm input boundary. A row is at most 16 KiB and must be strict
+UTF-8 JSON with no duplicate, missing, or unknown keys. Its identity fields
+are:
 
 | Field | Contract |
 | --- | --- |
@@ -126,10 +131,15 @@ caller's global decimal precision and rounding mode cannot change the result.
 
 The paired `queue_saturation_control` generator now exists in the separate
 runtime scenario module, but this result-free harness does not import or invoke
-it. This contract still does not implement an evaluator, result codec,
-publication, overwrite behavior, or result visuals. Harness unit tests use
-synthetic row documents and pure arithmetic; they never call a scenario,
-monitor, or report function and never materialize `evaluation/results`.
+it. The separate `evaluation_executor` module can validate the exact frozen
+protocol/plan, execute paired arms sequentially in memory, and return a sealed
+complete canonical row set. It has no filesystem, CLI, environment,
+subprocess, network, clock, logging, or partial-iterator surface, and it has
+never run a frozen seed. A frozen-holdout result publisher, summary artifact,
+overwrite behavior, result files, and outcome visuals remain absent. Harness
+unit tests use synthetic row documents and pure arithmetic; executor tests use
+controlled test doubles or only the two disclosed worked seeds excluded from
+the holdout population. No test materializes `evaluation/results`.
 
 ## Reproducible harness evidence
 
@@ -153,9 +163,10 @@ python3 tools/record_holdout_harness_evidence.py --check
 ```
 
 The recorder invokes only `cowbot holdout-preflight`, repeats it to prove
-stable stdout, and exercises the same command with runtime-module imports
-blocked. It checks that the reserved namespace is unclaimed before and after,
-uses a secret-free environment, rejects symlinked or unexpected output
-entries, and publishes the manifest last. See
+stable stdout, and exercises the same command with the source executor and
+runtime-module imports blocked. It never imports or invokes the executor. It
+checks that the reserved namespace is unclaimed before and after, uses a
+secret-free environment, rejects symlinked or unexpected output entries, and
+publishes the manifest last. See
 [`holdout-evidence.md`](holdout-evidence.md) for the exact provenance and claim
 boundary.

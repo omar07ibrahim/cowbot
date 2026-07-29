@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="590" viewBox="0 0 1400 590" role="img" aria-labelledby="terminal-title terminal-desc">
   <title id="terminal-title">Actual COWBOT holdout preflight terminal capture</title>
-  <desc id="terminal-desc">A terminal rendering derived from actual canonical public CLI stdout. It reports a frozen and unrun 128-pair plan, an unclaimed repository result namespace, no executor, and no results or seed values.</desc>
+  <desc id="terminal-desc">A terminal rendering derived from actual canonical public CLI stdout. It reports a frozen and unrun 128-pair plan, an unclaimed repository result namespace, and a source executor that exists but has not been invoked. No results or seed values are shown.</desc>
   <style>
     .bg { fill: #07111f; }
     .panel { fill: #0d1b2d; stroke: #34506f; stroke-width: 1.5; }
@@ -32,7 +32,7 @@
   <circle cx="98" cy="143" r="6" fill="#fbbf24"/>
   <circle cx="118" cy="143" r="6" fill="#34d399"/>
   <text x="72" y="184" class="command" text-anchor="start">$ python3 -m cowbot holdout-preflight --root .</text>
-  <text x="72" y="226" class="mono-small" text-anchor="start">{&quot;contains_results&quot;:false,&quot;executor_available&quot;:false,&quot;pair_count&quot;:128,</text>
+  <text x="72" y="226" class="mono-small" text-anchor="start">{&quot;contains_results&quot;:false,&quot;executor_available&quot;:true,&quot;pair_count&quot;:128,</text>
   <text x="72" y="255" class="mono-small" text-anchor="start">&quot;plan_sha256&quot;:&quot;958c683c9ef0591c033a231d899de211d05802b58990745b3a1ad68ce030cea9&quot;,</text>
   <text x="72" y="284" class="mono-small" text-anchor="start">&quot;protocol_id&quot;:&quot;queue-saturation-paired-holdout-v1&quot;,</text>
   <text x="72" y="313" class="mono-small" text-anchor="start">&quot;protocol_sha256&quot;:&quot;af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427&quot;,</text>
@@ -42,9 +42,9 @@
   <text x="70" y="491" class="body" text-anchor="start">exit 0 · stderr 0 · repeated 2×</text>
   <rect x="480" y="430" width="412" height="88" rx="12" class="verified"/>
   <text x="502" y="463" class="verified-text" text-anchor="start">RUNTIME IMPORT GUARD</text>
-  <text x="502" y="491" class="body" text-anchor="start">monitor · report · scenario · stream blocked</text>
+  <text x="502" y="491" class="body" text-anchor="start">executor · monitor · report · scenario · stream blocked</text>
   <rect x="912" y="430" width="440" height="88" rx="12" class="unrun"/>
   <text x="934" y="463" class="unrun-text" text-anchor="start">FROZEN · UNRUN</text>
-  <text x="934" y="491" class="body" text-anchor="start">no executor · no results · no seeds shown</text>
+  <text x="934" y="491" class="body" text-anchor="start">source executor exists · unrun · no results</text>
   <text x="48" y="554" class="small" text-anchor="start">The command proves only the inspected repository namespace is currently unclaimed.</text>
 </svg>

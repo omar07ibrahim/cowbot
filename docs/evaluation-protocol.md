@@ -3,8 +3,11 @@
 This document pre-registered the first broad synthetic evaluation before its
 control generator, evaluator, result codec, or result visualizer existed. The
 paired no-injection control generator is now implemented as a separate
-source-only slice, without running any frozen seed. The protocol remains a
-design and anti-cherry-picking artifact, not an evaluation result.
+source-only slice. A pure in-memory executor and canonical per-arm row codec
+now also exist, but neither has been used to run a frozen seed. There is still
+no frozen-holdout result publisher, summary artifact, or outcome visual. The
+protocol remains a design and anti-cherry-picking artifact, not an evaluation
+result.
 
 The machine contract is
 [`evaluation/protocol.v1.json`](../evaluation/protocol.v1.json). Its canonical
@@ -45,9 +48,10 @@ into result-free preflight:
 | betting epsilon | 0.5 |
 | alarm wealth | 100 |
 
-A future executor must explicitly map these fields into the runtime
-`MonitorConfig` and prove that mapping before it can run a case. No such
-executor exists in this slice.
+`execute_frozen_holdout()` explicitly maps all five fields into the runtime
+`MonitorConfig`, verifies that exact mapping, and fails closed on protocol or
+plan drift before case execution. This source-only boundary has never been
+invoked on a frozen seed.
 
 Neither the worked default replay nor the retained seed-13 counterexample may
 enter the holdout population.
@@ -72,7 +76,7 @@ production false-alarm guarantee, causal identification, or external validity.
 
 ## Result boundary
 
-At this commit, both pre-registered result paths are absent:
+In the current repository tree, both pre-registered result paths are absent:
 
 ```text
 evaluation/results/per-seed.v1.ndjson
@@ -85,12 +89,16 @@ aliases such as JSON booleans for integers, non-finite values, path traversal,
 oversized input, symlinked protocol files, schedule drift, threshold drift,
 and any change to the fixed case count.
 
-`queue_saturation_control` is implemented and tested only with the two
-pre-disclosed worked seeds excluded from the holdout population. No claim in
-this document says that the evaluator, result codec, or acceptance decision
-has been implemented. Those remain separate reviewable slices. The holdout
-seeds must not be run during their implementation; unit tests may validate
-derivation and shapes without consuming frozen scenario outputs.
+`queue_saturation_control` and the source executor are exercised with the two
+pre-disclosed worked seeds excluded from the holdout population; full-plan
+executor tests replace case execution with controlled test doubles. The
+executor validates the exact protocol and plan, executes paired arms only when
+explicitly called, produces one complete in-memory tuple of canonical rows,
+and performs no filesystem or publication I/O. No frozen incident/control
+stream has been generated or monitored, no acceptance outcome has been
+produced, and no frozen-holdout result publisher, summary artifact, or outcome
+visual exists. The default preflight and evidence recorder do not import or
+invoke the executor.
 
 The [source-derived protocol diagram](protocol-visual-evidence.md) makes this
 frozen workflow visible without entering the reserved result namespace. Its

@@ -94,7 +94,7 @@ class HoldoutPreflightCliTests(unittest.TestCase):
         self.assertEqual(decoded["row_count"], 256)
         self.assertEqual(decoded["result_namespace"], "unclaimed")
         self.assertIs(decoded["contains_results"], False)
-        self.assertIs(decoded["executor_available"], False)
+        self.assertIs(decoded["executor_available"], True)
         self.assertEqual(decoded["plan_sha256"], FROZEN_PLAN_SHA256)
         self.assertEqual(
             outputs[0],
@@ -176,6 +176,7 @@ import importlib.abc
 import sys
 
 FORBIDDEN = frozenset({
+    "cowbot.evaluation_executor",
     "cowbot.monitor",
     "cowbot.report",
     "cowbot.scenario",
