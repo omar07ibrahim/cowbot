@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import unittest
-import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+from xml.etree import ElementTree
 
 from cowbot.evaluation_protocol import (
     assert_result_namespace_unclaimed,
@@ -12,13 +12,10 @@ from cowbot.evaluation_protocol import (
 )
 from tools import render_protocol_visual
 
-
 ROOT = Path(__file__).resolve().parents[1]
 VISUAL = ROOT / render_protocol_visual.VISUAL_PATH
 MANIFEST = ROOT / render_protocol_visual.MANIFEST_PATH
-PROTOCOL_SHA256 = (
-    "af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427"
-)
+PROTOCOL_SHA256 = "af596b4bc5f0c7ae192d87271521d2eed4c4bdd35bc0c200af1e5333d4107427"
 
 
 class ProtocolVisualTests(unittest.TestCase):
@@ -56,28 +53,44 @@ class ProtocolVisualTests(unittest.TestCase):
             manifest["format"],
             render_protocol_visual.FORMAT,
         )
-        self.assertEqual(manifest["source_inputs"], [{
-            "canonical_bytes": 1811,
-            "media_type": "application/json",
-            "path": "evaluation/protocol.v1.json",
-            "semantic_sha256": PROTOCOL_SHA256,
-        }])
-        self.assertEqual(manifest["outputs"], [{
-            "bytes": len(visual),
-            "media_type": "image/svg+xml",
-            "path": render_protocol_visual.VISUAL_PATH,
-            "sha256": hashlib.sha256(visual).hexdigest(),
-        }])
-        self.assertEqual(manifest["protocol"], {
-            "protocol_id": "queue-saturation-paired-holdout-v1",
-            "semantic_sha256": PROTOCOL_SHA256,
-            "status": "frozen-unrun",
-        })
-        self.assertEqual(manifest["derived_counts"], {
-            "paired_seeds": 128,
-            "required_seed_arm_rows": 256,
-            "worked_seed_exclusions": [13, 20260725],
-        })
+        self.assertEqual(
+            manifest["source_inputs"],
+            [
+                {
+                    "canonical_bytes": 1811,
+                    "media_type": "application/json",
+                    "path": "evaluation/protocol.v1.json",
+                    "semantic_sha256": PROTOCOL_SHA256,
+                }
+            ],
+        )
+        self.assertEqual(
+            manifest["outputs"],
+            [
+                {
+                    "bytes": len(visual),
+                    "media_type": "image/svg+xml",
+                    "path": render_protocol_visual.VISUAL_PATH,
+                    "sha256": hashlib.sha256(visual).hexdigest(),
+                }
+            ],
+        )
+        self.assertEqual(
+            manifest["protocol"],
+            {
+                "protocol_id": "queue-saturation-paired-holdout-v1",
+                "semantic_sha256": PROTOCOL_SHA256,
+                "status": "frozen-unrun",
+            },
+        )
+        self.assertEqual(
+            manifest["derived_counts"],
+            {
+                "paired_seeds": 128,
+                "required_seed_arm_rows": 256,
+                "worked_seed_exclusions": [13, 20260725],
+            },
+        )
         self.assertFalse(manifest["claim_boundary"]["contains_results"])
         self.assertEqual(
             manifest["generator"]["source_data_policy"],
@@ -155,9 +168,7 @@ class ProtocolVisualTests(unittest.TestCase):
         visual_relative = Path(render_protocol_visual.VISUAL_PATH)
 
         self.assertFalse(
-            visual_relative.name.startswith(
-                Path(protocol.visual_prefix).name
-            )
+            visual_relative.name.startswith(Path(protocol.visual_prefix).name)
         )
         assert_result_namespace_unclaimed(ROOT, protocol)
 

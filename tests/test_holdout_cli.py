@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import re
@@ -9,8 +10,11 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
+from cowbot import cli as cli_module
 from cowbot.cli import _parser, main
+from cowbot.contracts import ValidationError
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = ROOT / "evaluation" / "protocol.v1.json"
@@ -211,6 +215,223 @@ raise SystemExit(status)
         self.assertEqual(set(json.loads(result.stdout)), PREFLIGHT_KEYS)
         self.assertNotIn(environment["COWBOT_PREFLIGHT_SENTINEL"], result.stdout)
         self.assertIsNone(re.search(r"\b20\d{2}-\d{2}-\d{2}[T ]", result.stdout))
+
+    def test_claimed_result_namespace_fails_closed_and_redacts_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            private_root = Path(directory) / "private-holdout-root"
+            evaluation = private_root / "evaluation"
+            results = evaluation / "results"
+            results.mkdir(parents=True)
+            (evaluation / "protocol.v1.json").write_bytes(PROTOCOL_PATH.read_bytes())
+            (results / "summary.v1.json").write_text(
+                '{"untrusted":"result"}\n',
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            error = io.StringIO()
+
+            with redirect_stdout(output), redirect_stderr(error):
+                result = main(
+                    [
+                        "holdout-preflight",
+                        "--root",
+                        str(private_root),
+                    ]
+                )
+
+        self.assertEqual(result, 2)
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(
+            error.getvalue(),
+            "cowbot: error: cowbot_protocol_error:result_namespace_claimed\n",
+        )
+        self.assertNotIn(str(private_root), error.getvalue())
+        self.assertNotIn("untrusted", error.getvalue())
+        self.assertNotIn("Traceback", error.getvalue())
+
+    def test_simulate_rejects_aliased_and_unsafe_outputs_before_staging(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shared = root / "shared-output"
+            output = io.StringIO()
+            error = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(error):
+                result = main(
+                    [
+                        "simulate",
+                        "--output",
+                        str(shared),
+                        "--truth-output",
+                        str(shared),
+                    ]
+                )
+            self.assertEqual(result, 2)
+            self.assertEqual(output.getvalue(), "")
+            self.assertIn("output paths must be different", error.getvalue())
+            self.assertFalse(shared.exists())
+
+            unsafe = root / "existing-directory"
+            unsafe.mkdir()
+            truth = root / "truth.json"
+            output = io.StringIO()
+            error = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(error):
+                result = main(
+                    [
+                        "simulate",
+                        "--output",
+                        str(unsafe),
+                        "--truth-output",
+                        str(truth),
+                        "--overwrite",
+                    ]
+                )
+            self.assertEqual(result, 2)
+            self.assertEqual(output.getvalue(), "")
+            self.assertIn("absent or regular files", error.getvalue())
+            self.assertTrue(unsafe.is_dir())
+            self.assertFalse(truth.exists())
+
+    def test_simulate_overwrite_atomically_replaces_bound_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stream = root / "telemetry.ndjson"
+            truth = root / "truth.json"
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    main(
+                        [
+                            "simulate",
+                            "--output",
+                            str(stream),
+                            "--truth-output",
+                            str(truth),
+                            "--samples",
+                            "48",
+                            "--onset-index",
+                            "32",
+                            "--seed",
+                            "7",
+                        ]
+                    ),
+                    0,
+                )
+            first_stream = stream.read_bytes()
+            first_truth = truth.read_bytes()
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = main(
+                    [
+                        "simulate",
+                        "--output",
+                        str(stream),
+                        "--truth-output",
+                        str(truth),
+                        "--samples",
+                        "48",
+                        "--onset-index",
+                        "32",
+                        "--seed",
+                        "8",
+                        "--overwrite",
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            self.assertNotEqual(stream.read_bytes(), first_stream)
+            self.assertNotEqual(truth.read_bytes(), first_truth)
+            decoded_truth = json.loads(truth.read_text(encoding="utf-8"))
+            self.assertEqual(
+                decoded_truth["telemetry_sha256"],
+                hashlib.sha256(stream.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                json.loads(output.getvalue())["telemetry_sha256"],
+                decoded_truth["telemetry_sha256"],
+            )
+            self.assertEqual(
+                sorted(path.name for path in root.iterdir()),
+                ["telemetry.ndjson", "truth.json"],
+            )
+
+    def test_new_overwrite_failure_reports_retained_partial_output(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stream = root / "telemetry.ndjson"
+            truth = root / "truth.json"
+            real_replace = cli_module._replace_path
+            replace_calls = 0
+
+            def fail_second_replace(source: Path, destination: Path) -> None:
+                nonlocal replace_calls
+                replace_calls += 1
+                if replace_calls == 2:
+                    raise OSError("injected publication failure")
+                real_replace(source, destination)
+
+            output = io.StringIO()
+            error = io.StringIO()
+            with (
+                mock.patch.object(
+                    cli_module,
+                    "_replace_path",
+                    side_effect=fail_second_replace,
+                ),
+                mock.patch.object(
+                    cli_module,
+                    "_remove_path",
+                    side_effect=OSError("injected rollback failure"),
+                ),
+                redirect_stdout(output),
+                redirect_stderr(error),
+            ):
+                result = main(
+                    [
+                        "simulate",
+                        "--output",
+                        str(stream),
+                        "--truth-output",
+                        str(truth),
+                        "--samples",
+                        "48",
+                        "--onset-index",
+                        "32",
+                        "--overwrite",
+                    ]
+                )
+
+            self.assertEqual(result, 2)
+            self.assertEqual(output.getvalue(), "")
+            self.assertIn("manual recovery required", error.getvalue())
+            self.assertIn("new output remains", error.getvalue())
+            self.assertTrue(stream.is_file())
+            self.assertFalse(truth.exists())
+            self.assertEqual([path.name for path in root.iterdir()], [stream.name])
+
+    def test_truth_writer_collision_preserves_existing_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            truth = root / "truth.json"
+            original = b'{"owner":"existing"}\n'
+            truth.write_bytes(original)
+
+            with self.assertRaisesRegex(
+                ValidationError,
+                "refusing to overwrite",
+            ):
+                cli_module._write_truth(
+                    truth,
+                    {"owner": "replacement"},
+                    overwrite=False,
+                )
+
+            self.assertEqual(truth.read_bytes(), original)
+            self.assertEqual(tuple(root.iterdir()), (truth,))
 
 
 if __name__ == "__main__":

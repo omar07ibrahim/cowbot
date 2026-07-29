@@ -8,14 +8,13 @@ import json
 import os
 import stat
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
 
 from .contracts import Sample, StreamSchema, ValidationError
 from .monitor import MonitorConfig, MonitorReport, monitor_stream
 from .stream import read_stream
-
 
 REPORT_FORMAT = "cowbot.monitor_report.v1"
 MAX_REPORT_INPUT_BYTES = 64 * 1024 * 1024
@@ -36,9 +35,7 @@ class PreparedReport:
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
-        raise ValidationError(
-            "PreparedReport values must come from prepare_report"
-        )
+        raise ValidationError("PreparedReport values must come from prepare_report")
 
     @classmethod
     def _create(
@@ -48,7 +45,7 @@ class PreparedReport:
         payload: bytes,
         telemetry_sha256: str,
         sample_count: int,
-    ) -> "PreparedReport":
+    ) -> PreparedReport:
         prepared = object.__new__(cls)
         object.__setattr__(prepared, "monitor", monitor)
         object.__setattr__(prepared, "payload", payload)
@@ -75,16 +72,10 @@ def _validate_report_shape(
     node_metrics = tuple(node.metric for node in report.calibrated_nodes)
     summary_metrics = tuple(summary.metric for summary in report.node_summaries)
     if node_metrics != metrics or summary_metrics != metrics:
-        raise ValidationError(
-            "report node order does not match the telemetry schema"
-        )
-    observation_count = (
-        len(rows) - report.config.calibration_end
-    ) * len(metrics)
+        raise ValidationError("report node order does not match the telemetry schema")
+    observation_count = (len(rows) - report.config.calibration_end) * len(metrics)
     if observation_count < 1 or len(report.observations) != observation_count:
-        raise ValidationError(
-            "report observation count does not match its partitions"
-        )
+        raise ValidationError("report observation count does not match its partitions")
     expected = (
         (index, metric)
         for index in range(report.config.calibration_end, len(rows))
@@ -95,26 +86,29 @@ def _validate_report_shape(
         expected,
         strict=True,
     ):
-        if (
-            observation.index != expected_index
-            or observation.metric != expected_metric
-        ):
+        if observation.index != expected_index or observation.metric != expected_metric:
             raise ValidationError(
                 "report observations do not match schema order and partitions"
             )
     known_metrics = frozenset(metrics)
-    for candidate in (
-        *report.root_candidates,
-        *report.suppressed_candidates,
-    ):
+
+    def validate_candidate(metric: str, alarm_index: int) -> None:
         if (
-            candidate.metric not in known_metrics
-            or candidate.alarm_index < report.config.calibration_end
-            or candidate.alarm_index >= len(rows)
+            metric not in known_metrics
+            or alarm_index < report.config.calibration_end
+            or alarm_index >= len(rows)
         ):
             raise ValidationError(
                 "report candidate lies outside schema or monitor partition"
             )
+
+    for root_candidate in report.root_candidates:
+        validate_candidate(root_candidate.metric, root_candidate.alarm_index)
+    for suppressed_candidate in report.suppressed_candidates:
+        validate_candidate(
+            suppressed_candidate.metric,
+            suppressed_candidate.alarm_index,
+        )
 
 
 def _schema_record(schema: StreamSchema) -> dict[str, object]:
@@ -236,9 +230,7 @@ def _report_record(
                 "alarm_timestamp_seconds": rows[
                     candidate.alarm_index
                 ].timestamp_seconds,
-                "compatible_downstream_alarm_count": (
-                    candidate.downstream_alarm_count
-                ),
+                "compatible_downstream_alarm_count": (candidate.downstream_alarm_count),
                 "peak_log_power_wealth": candidate.peak_log_power_wealth,
             }
             for rank, candidate in enumerate(report.root_candidates, start=1)
@@ -257,9 +249,7 @@ def _report_record(
         "observations": [
             {
                 "index": observation.index,
-                "timestamp_seconds": rows[
-                    observation.index
-                ].timestamp_seconds,
+                "timestamp_seconds": rows[observation.index].timestamp_seconds,
                 "metric": observation.metric,
                 "observed_normalized": observation.observed_normalized,
                 "predicted_normalized": observation.predicted_normalized,
@@ -286,9 +276,7 @@ def prepare_report(
     if not telemetry:
         raise ValidationError("telemetry payload must not be empty")
     if len(telemetry) > MAX_REPORT_INPUT_BYTES:
-        raise ValidationError(
-            f"analyze input exceeds {MAX_REPORT_INPUT_BYTES} bytes"
-        )
+        raise ValidationError(f"analyze input exceeds {MAX_REPORT_INPUT_BYTES} bytes")
     telemetry_digest = hashlib.sha256(telemetry).hexdigest()
     chosen = MonitorConfig() if config is None else config
     if not isinstance(chosen, MonitorConfig):
@@ -303,13 +291,12 @@ def prepare_report(
     samples = tuple(sample_iterator)
     del text
     if chosen.calibration_end < len(samples):
-        observation_count = (
-            len(samples) - chosen.calibration_end
-        ) * len(schema.metrics)
+        observation_count = (len(samples) - chosen.calibration_end) * len(
+            schema.metrics
+        )
         if observation_count > MAX_REPORT_OBSERVATIONS:
             raise ValidationError(
-                "serialized report would exceed "
-                f"{MAX_REPORT_OBSERVATIONS} observations"
+                f"serialized report would exceed {MAX_REPORT_OBSERVATIONS} observations"
             )
     monitor_report = monitor_stream(schema, samples, config=chosen)
     _validate_report_shape(schema, samples, monitor_report)
@@ -350,9 +337,7 @@ def prepare_report_path(
         ) from error
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValidationError(
-                "telemetry input must be a regular file"
-            )
+            raise ValidationError("telemetry input must be a regular file")
         with os.fdopen(descriptor, "rb") as source:
             descriptor = -1
             telemetry = source.read(MAX_REPORT_INPUT_BYTES + 1)
@@ -422,8 +407,7 @@ def publish_report_path(
                 os.link(temporary_path, path)
             except FileExistsError as error:
                 raise ValidationError(
-                    f"refusing to overwrite {path}; "
-                    "pass --overwrite explicitly"
+                    f"refusing to overwrite {path}; pass --overwrite explicitly"
                 ) from error
             temporary_path.unlink()
     finally:

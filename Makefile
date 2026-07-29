@@ -1,10 +1,22 @@
-.PHONY: check test simulate report evidence evidence-check
+.PHONY: check lint typecheck coverage test simulate report evidence evidence-check
 .PHONY: holdout-evidence holdout-evidence-check clean
 
 PYTHON ?= python3
 
-check: test
+check: lint typecheck coverage
 	$(PYTHON) -m compileall -q cowbot tests tools
+
+lint:
+	$(PYTHON) -m ruff check .
+	$(PYTHON) -m ruff format --check .
+
+typecheck:
+	$(PYTHON) -m mypy
+
+coverage:
+	$(PYTHON) -m coverage erase
+	$(PYTHON) -m coverage run --branch -m unittest discover -s tests
+	$(PYTHON) -m coverage report --show-missing
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v

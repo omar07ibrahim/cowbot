@@ -7,12 +7,15 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
+from cowbot import cli as cli_module
 from cowbot import report as report_module
 from cowbot.cli import main
 from cowbot.contracts import ValidationError
+from cowbot.monitor import MonitorConfig
 from cowbot.report import (
     REPORT_FORMAT,
     PreparedReport,
@@ -250,8 +253,7 @@ class ReportTests(unittest.TestCase):
         canonical = self._telemetry_bytes()
         lines = canonical.splitlines(keepends=True)
         spaced_schema = (
-            json.dumps(json.loads(lines[0]), sort_keys=False).encode("utf-8")
-            + b"\n"
+            json.dumps(json.loads(lines[0]), sort_keys=False).encode("utf-8") + b"\n"
         )
         modified = spaced_schema + b"".join(lines[1:])
 
@@ -283,18 +285,20 @@ class ReportTests(unittest.TestCase):
                 1,
             ),
             mock.patch.object(report_module, "monitor_stream") as monitor,
+            self.assertRaisesRegex(ValidationError, "observations"),
         ):
-            with self.assertRaisesRegex(ValidationError, "observations"):
-                prepare_report(telemetry)
+            prepare_report(telemetry)
         monitor.assert_not_called()
 
-        with mock.patch.object(
-            report_module,
-            "MAX_REPORT_OUTPUT_BYTES",
-            64,
+        with (
+            mock.patch.object(
+                report_module,
+                "MAX_REPORT_OUTPUT_BYTES",
+                64,
+            ),
+            self.assertRaisesRegex(ValidationError, "serialized report"),
         ):
-            with self.assertRaisesRegex(ValidationError, "serialized report"):
-                prepare_report(telemetry)
+            prepare_report(telemetry)
 
     def test_report_input_rejects_special_files_without_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -316,6 +320,198 @@ class ReportTests(unittest.TestCase):
                 sample_count=1,
                 _seal=object(),
             )
+
+    def test_prepare_report_rejects_invalid_boundary_types_and_empty_input(
+        self,
+    ) -> None:
+        for invalid in ("not bytes", bytearray(b"not immutable"), memoryview(b"bytes")):
+            with (
+                self.subTest(invalid_type=type(invalid).__name__),
+                self.assertRaisesRegex(ValidationError, "must be bytes"),
+            ):
+                prepare_report(invalid)  # type: ignore[arg-type]
+
+        with self.assertRaisesRegex(ValidationError, "must not be empty"):
+            prepare_report(b"")
+        with self.assertRaisesRegex(ValidationError, "MonitorConfig"):
+            prepare_report(self._telemetry_bytes(), config=object())  # type: ignore[arg-type]
+        with self.assertRaisesRegex(
+            ValidationError,
+            "at least one row after calibration",
+        ):
+            prepare_report(
+                self._telemetry_bytes(),
+                config=MonitorConfig(fit_end=120, calibration_end=400),
+            )
+        with self.assertRaisesRegex(ValidationError, "pathlib.Path"):
+            prepare_report_path("telemetry.ndjson")  # type: ignore[arg-type]
+
+        prepared = prepare_report(self._telemetry_bytes())
+        with self.assertRaisesRegex(ValidationError, "pathlib.Path"):
+            publish_report_path(  # type: ignore[arg-type]
+                "report.json",
+                prepared,
+                overwrite=False,
+            )
+
+    def test_prepare_report_path_rejects_missing_input_without_publishing(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "private-missing-input.ndjson"
+            with self.assertRaisesRegex(ValidationError, "accessible regular file"):
+                prepare_report_path(missing)
+            self.assertFalse(missing.exists())
+
+    def test_report_shape_validation_rejects_corrupted_monitor_results(
+        self,
+    ) -> None:
+        telemetry = self._telemetry_bytes()
+        valid = prepare_report(telemetry).monitor
+        first_observation = valid.observations[0]
+        first_candidate = valid.root_candidates[0]
+        sample_count = 360
+        calibration_end = valid.config.calibration_end
+        corruptions = (
+            (
+                "calibrated node order",
+                replace(
+                    valid, calibrated_nodes=tuple(reversed(valid.calibrated_nodes))
+                ),
+                "node order",
+            ),
+            (
+                "summary order",
+                replace(valid, node_summaries=tuple(reversed(valid.node_summaries))),
+                "node order",
+            ),
+            (
+                "observation count",
+                replace(valid, observations=valid.observations[:-1]),
+                "observation count",
+            ),
+            (
+                "observation index",
+                replace(
+                    valid,
+                    observations=(
+                        replace(first_observation, index=first_observation.index + 1),
+                        *valid.observations[1:],
+                    ),
+                ),
+                "schema order and partitions",
+            ),
+            (
+                "observation metric",
+                replace(
+                    valid,
+                    observations=(
+                        replace(first_observation, metric="unknown_metric"),
+                        *valid.observations[1:],
+                    ),
+                ),
+                "schema order and partitions",
+            ),
+            (
+                "candidate metric",
+                replace(
+                    valid,
+                    root_candidates=(
+                        replace(first_candidate, metric="unknown_metric"),
+                    ),
+                ),
+                "candidate lies outside",
+            ),
+            (
+                "candidate before monitor partition",
+                replace(
+                    valid,
+                    root_candidates=(
+                        replace(first_candidate, alarm_index=calibration_end - 1),
+                    ),
+                ),
+                "candidate lies outside",
+            ),
+            (
+                "candidate after input",
+                replace(
+                    valid,
+                    root_candidates=(
+                        replace(first_candidate, alarm_index=sample_count),
+                    ),
+                ),
+                "candidate lies outside",
+            ),
+        )
+
+        for label, corrupted, message in corruptions:
+            with (
+                self.subTest(corruption=label),
+                mock.patch.object(
+                    report_module,
+                    "monitor_stream",
+                    return_value=corrupted,
+                ),
+                self.assertRaisesRegex(ValidationError, message),
+            ):
+                prepare_report(telemetry)
+
+    def test_canonical_serializer_rejects_wrong_format_and_nonfinite_data(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(ValidationError, "report format"):
+            report_module._canonical_report_bytes({"format": "unknown"})
+        with self.assertRaisesRegex(ValidationError, "finite canonical JSON"):
+            report_module._canonical_report_bytes(
+                {
+                    "format": REPORT_FORMAT,
+                    "nonfinite": float("nan"),
+                }
+            )
+
+    def test_publisher_preserves_existing_file_and_cleans_failed_stage(
+        self,
+    ) -> None:
+        prepared = prepare_report(self._telemetry_bytes())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "report.json"
+            original = b'{"owner":"existing"}\n'
+            output.write_bytes(original)
+
+            with self.assertRaisesRegex(ValidationError, "refusing to overwrite"):
+                publish_report_path(output, prepared, overwrite=False)
+            self.assertEqual(output.read_bytes(), original)
+            self.assertEqual(tuple(root.iterdir()), (output,))
+
+            output.unlink()
+            with (
+                mock.patch.object(
+                    report_module.os,
+                    "fsync",
+                    side_effect=OSError("injected durability failure"),
+                ),
+                self.assertRaisesRegex(OSError, "durability failure"),
+            ):
+                publish_report_path(output, prepared, overwrite=False)
+            self.assertFalse(output.exists())
+            self.assertEqual(list(root.iterdir()), [])
+
+    def test_summary_explicitly_reports_when_no_candidate_is_ranked(self) -> None:
+        prepared = prepare_report(self._telemetry_bytes())
+        without_candidate = replace(prepared.monitor, root_candidates=())
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            cli_module._print_report_summary(
+                without_candidate,
+                sample_count=prepared.sample_count,
+                telemetry_sha256=prepared.telemetry_sha256,
+                payload_sha256=prepared.sha256,
+            )
+
+        self.assertIn("ranked candidate   none\n", output.getvalue())
+        self.assertIn("claim boundary", output.getvalue())
 
 
 if __name__ == "__main__":

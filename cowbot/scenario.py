@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Iterator
 
 from .contracts import Edge, Metric, Sample, StreamSchema, ValidationError
-
 
 MASK_64 = (1 << 64) - 1
 MIN_SAMPLES = 32
@@ -99,8 +98,7 @@ def queue_saturation(
         or onset_index >= samples
     ):
         raise ValidationError(
-            "onset_index must leave at least 16 healthy samples and "
-            "one incident sample"
+            "onset_index must leave at least 16 healthy samples and one incident sample"
         )
 
     schema = queue_saturation_schema()
@@ -141,9 +139,7 @@ def _queue_saturation_samples(
 
     for index in range(truth.samples):
         request_rate = (
-            94.0
-            + 18.0 * _triangle(index, period=60)
-            + 2.4 * noise.normalish()
+            94.0 + 18.0 * _triangle(index, period=60) + 2.4 * noise.normalish()
         )
         incident_offset = 0.235 if index >= truth.onset_index else 0.0
         worker_cpu = (

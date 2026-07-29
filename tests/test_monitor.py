@@ -10,9 +10,15 @@ from cowbot.monitor import (
     MonitorConfig,
     NodeSummary,
     _feature_values,
+    _normalize_metric_value,
     _rank_candidates,
+    _required_alarm_index,
+    _robust_residual_scale,
+    _validate_work_budget,
+    _validated_rows,
     monitor_stream,
     power_log_factor,
+    power_wealth,
 )
 from cowbot.scenario import queue_saturation
 
@@ -35,8 +41,7 @@ class MonitorTests(unittest.TestCase):
             truth.onset_index + 8,
         )
         alarm_indices = {
-            summary.metric: summary.alarm_index
-            for summary in report.node_summaries
+            summary.metric: summary.alarm_index for summary in report.node_summaries
         }
         self.assertIsNone(alarm_indices["request_rate"])
         self.assertEqual(alarm_indices["worker_cpu"], 224)
@@ -46,8 +51,7 @@ class MonitorTests(unittest.TestCase):
         )
         self.assertEqual(
             len(report.observations),
-            (truth.samples - report.config.calibration_end)
-            * len(schema.metrics),
+            (truth.samples - report.config.calibration_end) * len(schema.metrics),
         )
 
     def test_monitor_does_not_read_or_require_truth(self) -> None:
@@ -89,10 +93,7 @@ class MonitorTests(unittest.TestCase):
 
         self.assertIsNone(report.root_candidate)
         self.assertTrue(
-            all(
-                summary.alarm_index is None
-                for summary in report.node_summaries
-            )
+            all(summary.alarm_index is None for summary in report.node_summaries)
         )
 
     def test_monitoring_mutation_cannot_change_fitted_calibration(self) -> None:
@@ -131,12 +132,8 @@ class MonitorTests(unittest.TestCase):
 
         baseline = monitor_stream(schema, baseline_rows)
         changed = monitor_stream(schema, changed_rows)
-        baseline_nodes = {
-            node.metric: node for node in baseline.calibrated_nodes
-        }
-        changed_nodes = {
-            node.metric: node for node in changed.calibrated_nodes
-        }
+        baseline_nodes = {node.metric: node for node in baseline.calibrated_nodes}
+        changed_nodes = {node.metric: node for node in changed.calibrated_nodes}
 
         self.assertEqual(
             baseline_nodes["worker_cpu"].model,
@@ -185,12 +182,38 @@ class MonitorTests(unittest.TestCase):
             node.conformal_p_value(largest + 1.0),
             1.0 / (node.calibration_size + 1),
         )
+        with self.assertRaisesRegex(ValidationError, "must be non-negative"):
+            node.conformal_p_value(-1e-12)
 
     def test_four_minimum_p_values_cross_default_power_wealth(self) -> None:
         factor = power_log_factor(1.0 / 81.0, epsilon=0.5)
 
         self.assertLess(3.0 * factor, log(100.0))
         self.assertGreater(4.0 * factor, log(100.0))
+
+    def test_power_betting_contract_rejects_invalid_probabilities(self) -> None:
+        for p_value in (0.0, -0.1, 1.01):
+            with (
+                self.subTest(p_value=p_value),
+                self.assertRaisesRegex(ValidationError, r"p-value must be in \(0, 1\]"),
+            ):
+                power_log_factor(p_value, epsilon=0.5)
+
+        for epsilon in (0.0, -0.1, 1.0, 1.01):
+            with (
+                self.subTest(epsilon=epsilon),
+                self.assertRaisesRegex(
+                    ValidationError,
+                    r"betting epsilon must be in \(0, 1\)",
+                ),
+            ):
+                power_log_factor(0.5, epsilon=epsilon)
+
+    def test_power_wealth_saturates_without_overflow(self) -> None:
+        self.assertAlmostEqual(power_wealth(2.0), 7.38905609893065)
+        self.assertEqual(power_wealth(log(1e300) + 1.0), float("inf"))
+        with self.assertRaisesRegex(ValidationError, "must be a finite number"):
+            power_wealth(float("nan"))
 
     def test_candidate_ranking_prefers_earlier_supported_ancestor(self) -> None:
         schema = StreamSchema(
@@ -318,6 +341,50 @@ class MonitorTests(unittest.TestCase):
 
         self.assertEqual(values, (0.54, 0.03))
 
+    def test_feature_cannot_address_before_the_stream(self) -> None:
+        schema = StreamSchema(
+            metrics=(Metric("signal", "count", 0.0, 100.0),),
+            edges=(),
+            cadence_seconds=1,
+        )
+        rows = (Sample(0, 0, {"signal": 10.0}).validated(schema),)
+
+        with self.assertRaisesRegex(ValidationError, "precedes the stream"):
+            _feature_values(
+                schema.metric_by_name,
+                rows,
+                0,
+                (LaggedFeature("signal", 1, "self"),),
+            )
+
+    def test_numeric_helpers_fail_closed_on_degenerate_state(self) -> None:
+        def unchecked_metric(
+            name: str,
+            minimum: float,
+            maximum: float,
+        ) -> Metric:
+            metric = object.__new__(Metric)
+            object.__setattr__(metric, "name", name)
+            object.__setattr__(metric, "unit", "count")
+            object.__setattr__(metric, "minimum", minimum)
+            object.__setattr__(metric, "maximum", maximum)
+            return metric
+
+        for metric in (
+            unchecked_metric("zero", 0.0, 0.0),
+            unchecked_metric("reversed", 1.0, -1.0),
+        ):
+            with (
+                self.subTest(metric=metric.name),
+                self.assertRaisesRegex(ValidationError, "no representable span"),
+            ):
+                _normalize_metric_value(metric, 0.0)
+
+        with self.assertRaisesRegex(ValidationError, "at least one value"):
+            _robust_residual_scale(())
+        self.assertEqual(_robust_residual_scale((2.0, 2.0, 2.0)), 2.0)
+        self.assertEqual(_robust_residual_scale((0.0, 0.0)), 1e-12)
+
     def test_affine_unit_rescaling_preserves_ranks_and_alarms(self) -> None:
         schema, samples, _ = queue_saturation()
         rows = list(samples)
@@ -353,19 +420,11 @@ class MonitorTests(unittest.TestCase):
                 scaled = monitor_stream(scaled_schema, scaled_rows)
 
                 self.assertEqual(
-                    tuple(
-                        item.alarm_index
-                        for item in baseline.node_summaries
-                    ),
-                    tuple(
-                        item.alarm_index
-                        for item in scaled.node_summaries
-                    ),
+                    tuple(item.alarm_index for item in baseline.node_summaries),
+                    tuple(item.alarm_index for item in scaled.node_summaries),
                 )
                 self.assertEqual(
-                    tuple(
-                        item.p_value for item in baseline.observations
-                    ),
+                    tuple(item.p_value for item in baseline.observations),
                     tuple(item.p_value for item in scaled.observations),
                 )
 
@@ -378,8 +437,7 @@ class MonitorTests(unittest.TestCase):
 
         report = monitor_stream(schema, list(samples))
         alarms = {
-            summary.metric: summary.alarm_index
-            for summary in report.node_summaries
+            summary.metric: summary.alarm_index for summary in report.node_summaries
         }
 
         self.assertEqual(alarms["queue_depth"], 218)
@@ -402,16 +460,18 @@ class MonitorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "StreamSchema"):
             monitor_stream(object(), rows)  # type: ignore[arg-type]
         for invalid_config in ({}, {"fit_end": 120}):
-            with self.subTest(invalid_config=invalid_config):
-                with self.assertRaisesRegex(
+            with (
+                self.subTest(invalid_config=invalid_config),
+                self.assertRaisesRegex(
                     ValidationError,
                     "MonitorConfig",
-                ):
-                    monitor_stream(  # type: ignore[arg-type]
-                        schema,
-                        rows,
-                        config=invalid_config,
-                    )
+                ),
+            ):
+                monitor_stream(  # type: ignore[arg-type]
+                    schema,
+                    rows,
+                    config=invalid_config,
+                )
 
         rows[10] = Sample(
             index=11,
@@ -421,11 +481,63 @@ class MonitorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "sample index"):
             monitor_stream(schema, rows)
 
+    def test_monitor_rejects_invalid_count_timestamp_and_row_type(self) -> None:
+        schema = StreamSchema(
+            metrics=(Metric("signal", "count", 0.0, 1.0),),
+            edges=(),
+            cadence_seconds=2,
+        )
+
+        class OversizedSamples(Sequence[Sample]):
+            def __len__(self) -> int:
+                return 1_000_001
+
+            def __getitem__(self, index: int) -> Sample:
+                raise AssertionError("count check touched a sample")
+
+        for samples in ((), OversizedSamples()):
+            with (
+                self.subTest(samples=type(samples).__name__),
+                self.assertRaisesRegex(ValidationError, "1 to 1000000 samples"),
+            ):
+                monitor_stream(schema, samples)
+
+        with self.assertRaisesRegex(ValidationError, "row 0 must be a Sample"):
+            _validated_rows(schema, (object(),))  # type: ignore[arg-type]
+        with self.assertRaisesRegex(ValidationError, "timestamp 1; expected 0"):
+            _validated_rows(
+                schema,
+                (Sample(0, 1, {"signal": 0.5}),),
+            )
+
+    def test_maximum_lag_is_checked_before_sample_materialization(self) -> None:
+        schema = StreamSchema(
+            metrics=(
+                Metric("parent", "count", 0.0, 1.0),
+                Metric("child", "count", 0.0, 1.0),
+            ),
+            edges=(Edge("parent", "child", lag=32),),
+            cadence_seconds=1,
+        )
+
+        class UntouchableSamples(Sequence[Sample]):
+            def __len__(self) -> int:
+                return 65
+
+            def __getitem__(self, index: int) -> Sample:
+                raise AssertionError("lag check touched a sample")
+
+        with self.assertRaisesRegex(ValidationError, "shorter than the maximum lag"):
+            monitor_stream(
+                schema,
+                UntouchableSamples(),
+                config=MonitorConfig(fit_end=32, calibration_end=64),
+            )
+
     def test_report_budget_fails_before_sample_materialization(self) -> None:
         schema = StreamSchema(
             metrics=tuple(
-                Metric(f"m{index}", "count", 0.0, 1.0)
-                for index in range(64)
+                Metric(f"m{index}", "count", 0.0, 1.0) for index in range(64)
             ),
             edges=(),
             cadence_seconds=1,
@@ -440,6 +552,43 @@ class MonitorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValidationError, "observations"):
             monitor_stream(schema, UntouchableSamples())
+
+    def test_each_monitor_training_budget_fails_closed(self) -> None:
+        one_feature = (LaggedFeature("signal", 1, "self"),)
+        many_features = tuple(
+            LaggedFeature(f"signal_{index}", 1, "self") for index in range(64)
+        )
+        cases = (
+            (
+                MonitorConfig(fit_end=999_968, calibration_end=1_000_000),
+                {"a": one_feature, "b": one_feature, "c": one_feature},
+                1_000_000,
+                "monitor fit exceeds.*feature-cell budget",
+            ),
+            (
+                MonitorConfig(fit_end=4_032, calibration_end=4_064),
+                {"a": many_features, "b": many_features, "c": many_features},
+                4_065,
+                "normal-product budget",
+            ),
+            (
+                MonitorConfig(fit_end=32, calibration_end=700_032),
+                {"a": one_feature, "b": one_feature, "c": one_feature},
+                700_033,
+                "monitor calibration exceeds.*feature-cell budget",
+            ),
+        )
+
+        for config, feature_sets, sample_count, message in cases:
+            with (
+                self.subTest(message=message),
+                self.assertRaisesRegex(ValidationError, message),
+            ):
+                _validate_work_budget(
+                    sample_count=sample_count,
+                    config=config,
+                    feature_sets=feature_sets,
+                )
 
     def test_monitor_rejects_node_above_its_feature_limit(self) -> None:
         metrics = (
@@ -471,6 +620,8 @@ class MonitorTests(unittest.TestCase):
 
     def test_configuration_rejects_overlapping_or_unsafe_partitions(self) -> None:
         for arguments in (
+            {"fit_end": True},
+            {"calibration_end": 200.0},
             {"fit_end": 31},
             {"fit_end": 120, "calibration_end": 151},
             {"betting_epsilon": 0.0},
@@ -480,9 +631,14 @@ class MonitorTests(unittest.TestCase):
             {"alarm_wealth": 10**400},
             {"fit_end": 1_000_001, "calibration_end": 1_000_040},
         ):
-            with self.subTest(arguments=arguments):
-                with self.assertRaises(ValidationError):
-                    MonitorConfig(**arguments)
+            with self.subTest(arguments=arguments), self.assertRaises(ValidationError):
+                MonitorConfig(**arguments)
+
+    def test_candidate_without_alarm_is_rejected(self) -> None:
+        summary = NodeSummary("signal", None, 0.0, 0.0, 0.0)
+
+        with self.assertRaisesRegex(ValidationError, "does not have an alarm"):
+            _required_alarm_index(summary)
 
 
 if __name__ == "__main__":

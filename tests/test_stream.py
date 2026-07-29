@@ -8,10 +8,46 @@ from pathlib import Path
 from unittest import mock
 
 from cowbot import cli
+from cowbot import stream as stream_module
 from cowbot.cli import main
-from cowbot.contracts import Sample, ValidationError
+from cowbot.contracts import Metric, Sample, StreamSchema, ValidationError
 from cowbot.scenario import queue_saturation
-from cowbot.stream import read_stream, write_path, write_stream
+from cowbot.stream import MAX_LINE_BYTES, read_stream, write_path, write_stream
+
+
+def minimal_schema_record() -> dict[str, object]:
+    return {
+        "type": "schema",
+        "schema_version": 1,
+        "cadence_seconds": 5,
+        "metrics": [
+            {
+                "name": "metric",
+                "unit": "count",
+                "minimum": 0,
+                "maximum": 10,
+            }
+        ],
+        "edges": [],
+    }
+
+
+def minimal_sample_record(
+    *,
+    index: object = 0,
+    timestamp_seconds: object = 0,
+    values: object | None = None,
+) -> dict[str, object]:
+    return {
+        "type": "sample",
+        "index": index,
+        "timestamp_seconds": timestamp_seconds,
+        "values": {"metric": 2.0} if values is None else values,
+    }
+
+
+def encoded_records(*records: object) -> str:
+    return "".join(json.dumps(record) + "\n" for record in records)
 
 
 class StreamTests(unittest.TestCase):
@@ -115,11 +151,132 @@ class StreamTests(unittest.TestCase):
             '{"type":"sample","index":0,"timestamp_seconds":0,'
             '"values":{"metric":' + huge_bound + "}}\n"
         )
-        _, huge_samples = read_stream(
-            io.StringIO(sample_schema + sample_record)
-        )
+        _, huge_samples = read_stream(io.StringIO(sample_schema + sample_record))
         with self.assertRaisesRegex(ValidationError, "represented as f64"):
             list(huge_samples)
+
+    def test_reader_rejects_invalid_record_envelopes_and_io_failures(self) -> None:
+        invalid_first_records = (
+            ("", "unexpected end"),
+            ('{"type":\n', "not valid JSON"),
+            ("[]\n", "JSON object"),
+            ('{"type":"schema","schema_version":NaN}\n', "non-finite JSON"),
+            (encoded_records(minimal_sample_record()), "schema record"),
+            ("x" * (MAX_LINE_BYTES + 1), f"exceeds {MAX_LINE_BYTES} bytes"),
+        )
+        for payload, message in invalid_first_records:
+            with (
+                self.subTest(message=message),
+                self.assertRaisesRegex(ValidationError, message),
+            ):
+                read_stream(io.StringIO(payload))
+
+        class UnreadableText(io.StringIO):
+            def readline(self, size: int = -1) -> str:
+                raise UnicodeError("injected decoder failure")
+
+        with self.assertRaisesRegex(ValidationError, "not valid UTF-8"):
+            read_stream(UnreadableText())
+
+        class InvalidTrailingText(io.StringIO):
+            def readline(self, size: int = -1) -> str:
+                if size == 1:
+                    raise UnicodeError("injected trailing decoder failure")
+                return super().readline(size)
+
+        source = InvalidTrailingText(
+            encoded_records(minimal_schema_record(), minimal_sample_record())
+        )
+        _, samples = read_stream(source)
+        with self.assertRaisesRegex(ValidationError, "trailing stream data"):
+            list(samples)
+
+    def test_reader_rejects_malformed_schema_components(self) -> None:
+        def changed_schema(**changes: object) -> dict[str, object]:
+            record = minimal_schema_record()
+            record.update(changes)
+            return record
+
+        metric = {
+            "name": "metric",
+            "unit": "count",
+            "minimum": 0,
+            "maximum": 10,
+        }
+        malformed = (
+            (changed_schema(metrics={}), "metrics and edges must be arrays"),
+            (changed_schema(edges={}), "metrics and edges must be arrays"),
+            (changed_schema(metrics=[7]), "metric 0 must be an object"),
+            (
+                changed_schema(metrics=[{"name": "metric"}]),
+                "metric 0 fields differ",
+            ),
+            (
+                changed_schema(metrics=[{**metric, "name": 7}]),
+                "name and unit must be strings",
+            ),
+            (
+                changed_schema(metrics=[{**metric, "minimum": True}]),
+                "bounds must be numbers",
+            ),
+            (changed_schema(edges=[7]), "edge 0 must be an object"),
+            (
+                changed_schema(edges=[{"parent": "metric", "child": "other"}]),
+                "edge 0 fields differ",
+            ),
+            (
+                changed_schema(edges=[{"parent": 7, "child": "metric", "lag": 1}]),
+                "endpoints must be strings",
+            ),
+        )
+        for record, message in malformed:
+            with (
+                self.subTest(message=message),
+                self.assertRaisesRegex(ValidationError, message),
+            ):
+                read_stream(io.StringIO(encoded_records(record)))
+
+    def test_reader_rejects_malformed_or_unbounded_samples(self) -> None:
+        schema_record = minimal_schema_record()
+        _, empty_samples = read_stream(io.StringIO(encoded_records(schema_record)))
+        with self.assertRaisesRegex(ValidationError, "at least one sample"):
+            list(empty_samples)
+
+        malformed = (
+            ({**minimal_sample_record(), "type": "schema"}, "sample record"),
+            (minimal_sample_record(values=[]), "values must be an object"),
+            (minimal_sample_record(index=True), "must be integers"),
+            (minimal_sample_record(timestamp_seconds=True), "must be integers"),
+            (minimal_sample_record(timestamp_seconds=5), "timestamp is 5"),
+        )
+        for record, message in malformed:
+            with self.subTest(message=message):
+                _, samples = read_stream(
+                    io.StringIO(encoded_records(schema_record, record))
+                )
+                with self.assertRaisesRegex(ValidationError, message):
+                    list(samples)
+
+        oversized = io.StringIO(
+            encoded_records(schema_record) + "x" * (MAX_LINE_BYTES + 1)
+        )
+        _, oversized_samples = read_stream(oversized)
+        with self.assertRaisesRegex(ValidationError, f"exceeds {MAX_LINE_BYTES} bytes"):
+            list(oversized_samples)
+
+        second = minimal_sample_record(index=1, timestamp_seconds=5)
+        with mock.patch.object(stream_module, "MAX_SAMPLES", 1):
+            _, bounded_samples = read_stream(
+                io.StringIO(
+                    encoded_records(
+                        schema_record,
+                        minimal_sample_record(),
+                        second,
+                    )
+                )
+            )
+            with self.assertRaisesRegex(ValidationError, "exceeds 1 samples"):
+                list(bounded_samples)
 
     def test_writer_rejects_noncontiguous_samples(self) -> None:
         schema, samples, _ = queue_saturation(
@@ -135,6 +292,69 @@ class StreamTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValidationError, "not contiguous"):
             write_stream(io.StringIO(), schema, rows)
+
+    def test_writer_enforces_nonempty_bounded_cadenced_streams(self) -> None:
+        schema = StreamSchema(
+            metrics=(Metric("metric", "count", 0.0, 10.0),),
+            edges=(),
+            cadence_seconds=5,
+        )
+        first = Sample(index=0, timestamp_seconds=0, values={"metric": 2.0})
+        second = Sample(index=1, timestamp_seconds=5, values={"metric": 3.0})
+
+        with self.assertRaisesRegex(ValidationError, "at least one sample"):
+            write_stream(io.StringIO(), schema, ())
+        with self.assertRaisesRegex(ValidationError, "timestamp.*expected 0"):
+            write_stream(
+                io.StringIO(),
+                schema,
+                (Sample(index=0, timestamp_seconds=5, values={"metric": 2.0}),),
+            )
+        with (
+            mock.patch.object(stream_module, "MAX_SAMPLES", 1),
+            self.assertRaisesRegex(ValidationError, "exceeds 1 samples"),
+        ):
+            write_stream(io.StringIO(), schema, (first, second))
+
+    def test_path_writer_publishes_atomically_and_requires_overwrite_opt_in(
+        self,
+    ) -> None:
+        schema = StreamSchema(
+            metrics=(Metric("metric", "count", 0.0, 10.0),),
+            edges=(),
+            cadence_seconds=5,
+        )
+        first = Sample(index=0, timestamp_seconds=0, values={"metric": 2.0})
+        replacement = Sample(
+            index=0,
+            timestamp_seconds=0,
+            values={"metric": 7.0},
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "nested" / "stream.ndjson"
+            self.assertEqual(
+                write_path(path, schema, (first,), overwrite=False),
+                1,
+            )
+            original = path.read_bytes()
+            self.assertIn(b'"metric":2.0', original)
+            self.assertEqual(
+                [item.name for item in path.parent.iterdir()],
+                ["stream.ndjson"],
+            )
+
+            with self.assertRaisesRegex(ValidationError, "refusing to overwrite"):
+                write_path(path, schema, (replacement,), overwrite=False)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(
+                write_path(path, schema, (replacement,), overwrite=True),
+                1,
+            )
+            self.assertIn(b'"metric":7.0', path.read_bytes())
+            self.assertEqual(
+                [item.name for item in path.parent.iterdir()],
+                ["stream.ndjson"],
+            )
 
     def test_path_writer_never_leaves_a_partial_stream(self) -> None:
         schema, samples, _ = queue_saturation(

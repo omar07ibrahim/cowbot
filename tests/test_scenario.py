@@ -60,9 +60,8 @@ class ScenarioTests(unittest.TestCase):
             {"samples": 40, "onset_index": 20, "seed": -1},
             {"samples": 40, "onset_index": 20, "seed": True},
         ):
-            with self.subTest(arguments=arguments):
-                with self.assertRaises(ValidationError):
-                    queue_saturation(**arguments)
+            with self.subTest(arguments=arguments), self.assertRaises(ValidationError):
+                queue_saturation(**arguments)
 
 
 if __name__ == "__main__":

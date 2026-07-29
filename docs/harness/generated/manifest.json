@@ -92,9 +92,9 @@
       "sha256": "4bb8bc51d4f45b6c54d4232bab73d70e42e641b45216c070308ae45885b1e213"
     },
     {
-      "bytes": 9645,
+      "bytes": 9523,
       "path": "cowbot/contracts.py",
-      "sha256": "d96b33870e9c6214880e1fb94d826640fa71afee3bfc2ba39a0dda1c80061dd7"
+      "sha256": "379b9f45e3e1901db05eef3826e32bdf0217a7dace033c6ed7220d9f8397073e"
     },
     {
       "bytes": 24665,

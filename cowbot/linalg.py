@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from collections.abc import Sequence as SequenceValue
 from dataclasses import dataclass
 from math import isfinite
-from typing import Sequence
 
 from ._numeric import (
     checked_add,
@@ -17,7 +17,6 @@ from ._numeric import (
     finite_float,
 )
 from .contracts import ValidationError
-
 
 MAX_FEATURES = 65
 MAX_FIT_ROWS = 1_000_000
@@ -80,8 +79,7 @@ class RidgeModel:
             raise ValidationError("model features must be a sequence")
         if len(features) != self.feature_count:
             raise ValidationError(
-                f"model expects {self.feature_count} features, "
-                f"received {len(features)}"
+                f"model expects {self.feature_count} features, received {len(features)}"
             )
         standardized: list[float] = []
         for index, raw_value in enumerate(features):
@@ -138,9 +136,7 @@ def fit_ridge(
     ):
         raise ValidationError("targets must be a sequence")
     if not features or len(features) > MAX_FIT_ROWS:
-        raise ValidationError(
-            f"fit requires 1 to {MAX_FIT_ROWS} feature rows"
-        )
+        raise ValidationError(f"fit requires 1 to {MAX_FIT_ROWS} feature rows")
     if len(features) != len(targets):
         raise ValidationError("feature and target row counts differ")
     first_row = features[0]
@@ -151,23 +147,16 @@ def fit_ridge(
         raise ValidationError("feature rows must be sequences")
     feature_count = len(first_row)
     if feature_count < 1 or feature_count > MAX_FEATURES:
-        raise ValidationError(
-            f"fit requires 1 to {MAX_FEATURES} features"
-        )
+        raise ValidationError(f"fit requires 1 to {MAX_FEATURES} features")
     if len(features) < feature_count + 2:
-        raise ValidationError(
-            "fit requires at least feature_count + 2 rows"
-        )
+        raise ValidationError("fit requires at least feature_count + 2 rows")
     fit_cells = len(features) * feature_count
     normal_products = fit_cells * feature_count
     if fit_cells > MAX_FIT_CELLS:
-        raise ValidationError(
-            f"fit exceeds the {MAX_FIT_CELLS} feature-cell budget"
-        )
+        raise ValidationError(f"fit exceeds the {MAX_FIT_CELLS} feature-cell budget")
     if normal_products > MAX_NORMAL_EQUATION_PRODUCTS:
         raise ValidationError(
-            "fit exceeds the "
-            f"{MAX_NORMAL_EQUATION_PRODUCTS} normal-product budget"
+            f"fit exceeds the {MAX_NORMAL_EQUATION_PRODUCTS} normal-product budget"
         )
     normalized_ridge = finite_float(ridge, field="ridge")
     if normalized_ridge <= 0.0 or normalized_ridge > 1.0:
@@ -179,9 +168,7 @@ def fit_ridge(
             raw_row,
             (str, bytes, bytearray),
         ):
-            raise ValidationError(
-                f"feature row {row_index} must be a sequence"
-            )
+            raise ValidationError(f"feature row {row_index} must be a sequence")
         if len(raw_row) != feature_count:
             raise ValidationError(
                 f"feature row {row_index} has {len(raw_row)} values; "
@@ -199,9 +186,7 @@ def fit_ridge(
 
     normalized_targets: list[float] = []
     for index, raw_target in enumerate(targets):
-        normalized_targets.append(
-            finite_float(raw_target, field=f"target {index}")
-        )
+        normalized_targets.append(finite_float(raw_target, field=f"target {index}"))
 
     row_count = len(rows)
     means = tuple(
@@ -361,9 +346,7 @@ def _solve_positive_definite(
             )
             if row == column:
                 if not isfinite(residual) or residual <= 1e-15:
-                    raise ValidationError(
-                        "ridge system is not positive definite"
-                    )
+                    raise ValidationError("ridge system is not positive definite")
                 lower[row][column] = checked_sqrt(
                     residual,
                     field="Cholesky diagonal",

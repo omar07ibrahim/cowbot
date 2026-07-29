@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from math import fsum, isfinite, sqrt
-from typing import Iterable, Sequence
 
 from .contracts import ValidationError
 
@@ -14,9 +14,7 @@ def finite_float(value: object, *, field: str) -> float:
     try:
         number = float(value)
     except (ArithmeticError, ValueError) as error:
-        raise ValidationError(
-            f"{field} cannot be represented as f64"
-        ) from error
+        raise ValidationError(f"{field} cannot be represented as f64") from error
     if not isfinite(number):
         raise ValidationError(f"{field} must be a finite number")
     return number
@@ -84,9 +82,7 @@ def checked_sqrt(value: float, *, field: str) -> float:
 def checked_median(values: Sequence[float], *, field: str) -> float:
     if not values:
         raise ValidationError(f"{field} requires at least one value")
-    ordered = sorted(
-        finite_float(value, field=f"{field} value") for value in values
-    )
+    ordered = sorted(finite_float(value, field=f"{field} value") for value in values)
     middle = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[middle]

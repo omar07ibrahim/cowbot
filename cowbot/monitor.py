@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from bisect import bisect_left
+from collections.abc import Mapping, Sequence
 from collections.abc import Sequence as SequenceValue
 from dataclasses import dataclass
 from math import exp, log
-from typing import Mapping, Sequence
 
 from ._numeric import (
     checked_add,
@@ -20,7 +20,6 @@ from ._numeric import (
 )
 from .contracts import Metric, Sample, StreamSchema, ValidationError
 from .linalg import MAX_FEATURES, RidgeModel, fit_ridge
-
 
 MIN_FIT_ROWS = 32
 MIN_CALIBRATION_ROWS = 32
@@ -47,13 +46,8 @@ class MonitorConfig:
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValidationError(f"{field} must be an integer")
         if self.fit_end < MIN_FIT_ROWS:
-            raise ValidationError(
-                f"fit_end must be at least {MIN_FIT_ROWS}"
-            )
-        if (
-            self.fit_end > MAX_PARTITION_END
-            or self.calibration_end > MAX_PARTITION_END
-        ):
+            raise ValidationError(f"fit_end must be at least {MIN_FIT_ROWS}")
+        if self.fit_end > MAX_PARTITION_END or self.calibration_end > MAX_PARTITION_END:
             raise ValidationError(
                 f"partition endpoints cannot exceed {MAX_PARTITION_END}"
             )
@@ -112,9 +106,7 @@ class CalibratedNode:
             field="nonconformity score",
         )
         if normalized_score < 0.0:
-            raise ValidationError(
-                "nonconformity score must be non-negative"
-            )
+            raise ValidationError("nonconformity score must be non-negative")
         not_smaller = self.calibration_size - bisect_left(
             self.calibration_scores,
             normalized_score,
@@ -189,13 +181,10 @@ def monitor_stream(
     if chosen.fit_end <= maximum_lag:
         raise ValidationError("fit partition is shorter than the maximum lag")
     if chosen.calibration_end >= sample_count:
-        raise ValidationError(
-            "stream must contain at least one row after calibration"
-        )
+        raise ValidationError("stream must contain at least one row after calibration")
     metrics = {metric.name: metric for metric in schema.metrics}
     feature_sets = {
-        metric: _node_features(schema, metric)
-        for metric in schema.topological_order()
+        metric: _node_features(schema, metric) for metric in schema.topological_order()
     }
     _validate_work_budget(
         sample_count=sample_count,
@@ -215,9 +204,7 @@ def monitor_stream(
     )
     alarm_threshold = log(chosen.alarm_wealth)
     log_power_wealth = {node.metric: 0.0 for node in nodes}
-    alarm_indices: dict[str, int | None] = {
-        node.metric: None for node in nodes
-    }
+    alarm_indices: dict[str, int | None] = {node.metric: None for node in nodes}
     peak_evidence = {node.metric: 0.0 for node in nodes}
     maximum_scores = {node.metric: 0.0 for node in nodes}
     observations: list[NodeObservation] = []
@@ -269,8 +256,7 @@ def monitor_stream(
                 score,
             )
             raised = (
-                alarm_indices[node.metric] is None
-                and next_evidence >= alarm_threshold
+                alarm_indices[node.metric] is None and next_evidence >= alarm_threshold
             )
             if raised:
                 alarm_indices[node.metric] = index
@@ -327,13 +313,10 @@ def _validate_work_budget(
     config: MonitorConfig,
     feature_sets: Mapping[str, Sequence[LaggedFeature]],
 ) -> None:
-    observation_count = (
-        sample_count - config.calibration_end
-    ) * len(feature_sets)
+    observation_count = (sample_count - config.calibration_end) * len(feature_sets)
     if observation_count > MAX_REPORT_OBSERVATIONS:
         raise ValidationError(
-            "monitor report would exceed "
-            f"{MAX_REPORT_OBSERVATIONS} node observations"
+            f"monitor report would exceed {MAX_REPORT_OBSERVATIONS} node observations"
         )
     fit_cells = 0
     normal_products = 0
@@ -344,13 +327,10 @@ def _validate_work_budget(
         fit_rows = config.fit_end - maximum_lag
         fit_cells += fit_rows * feature_count
         normal_products += fit_rows * feature_count * feature_count
-        calibration_cells += (
-            config.calibration_end - config.fit_end
-        ) * feature_count
+        calibration_cells += (config.calibration_end - config.fit_end) * feature_count
     if fit_cells > MAX_MONITOR_FIT_CELLS:
         raise ValidationError(
-            "monitor fit exceeds the "
-            f"{MAX_MONITOR_FIT_CELLS} feature-cell budget"
+            f"monitor fit exceeds the {MAX_MONITOR_FIT_CELLS} feature-cell budget"
         )
     if normal_products > MAX_MONITOR_NORMAL_PRODUCTS:
         raise ValidationError(
@@ -371,9 +351,7 @@ def _validated_rows(
     rows: list[Sample] = []
     for expected_index, raw_sample in enumerate(samples):
         if not isinstance(raw_sample, Sample):
-            raise ValidationError(
-                f"row {expected_index} must be a Sample"
-            )
+            raise ValidationError(f"row {expected_index} must be a Sample")
         sample = raw_sample.validated(schema)
         expected_timestamp = expected_index * schema.cadence_seconds
         if sample.index != expected_index:
@@ -416,9 +394,7 @@ def _feature_values(
     for feature in features:
         source_index = index - feature.lag
         if source_index < 0:
-            raise ValidationError(
-                f"feature {feature.label} precedes the stream"
-            )
+            raise ValidationError(f"feature {feature.label} precedes the stream")
         values.append(
             _normalize_metric_value(
                 metrics[feature.metric],
@@ -431,9 +407,7 @@ def _feature_values(
 def _normalize_metric_value(metric: Metric, value: float) -> float:
     magnitude = max(abs(metric.minimum), abs(metric.maximum))
     if magnitude == 0.0:
-        raise ValidationError(
-            f"metric {metric.name!r} has no representable span"
-        )
+        raise ValidationError(f"metric {metric.name!r} has no representable span")
     scaled_minimum = checked_divide(
         metric.minimum,
         magnitude,
@@ -455,9 +429,7 @@ def _normalize_metric_value(metric: Metric, value: float) -> float:
         field=f"{metric.name} normalized span",
     )
     if span <= 0.0:
-        raise ValidationError(
-            f"metric {metric.name!r} has no representable span"
-        )
+        raise ValidationError(f"metric {metric.name!r} has no representable span")
     return checked_divide(
         checked_subtract(
             scaled_value,
@@ -479,8 +451,7 @@ def _calibrate_node(
     maximum_lag = max(feature.lag for feature in features)
     fit_indices = range(maximum_lag, config.fit_end)
     feature_rows = [
-        _feature_values(metrics, rows, index, features)
-        for index in fit_indices
+        _feature_values(metrics, rows, index, features) for index in fit_indices
     ]
     targets = [
         _normalize_metric_value(
@@ -688,8 +659,7 @@ def _rank_candidates(
                     1
                     for metric, lag in path_lags[summary.metric].items()
                     if metric in alarms
-                    and _required_alarm_index(alarms[metric])
-                    >= alarm_index + lag
+                    and _required_alarm_index(alarms[metric]) >= alarm_index + lag
                 ),
                 peak_log_power_wealth=summary.peak_log_power_wealth,
             )

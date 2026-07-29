@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterable, Iterator, TextIO
+from typing import TextIO
 
 from .contracts import Edge, Metric, Sample, StreamSchema, ValidationError
-
 
 MAX_LINE_BYTES = 1_048_576
 MAX_SAMPLES = 1_000_000
@@ -137,9 +137,7 @@ def _readline(source: TextIO, *, line_number: int) -> str:
     try:
         return source.readline(MAX_LINE_BYTES + 1)
     except UnicodeError as error:
-        raise ValidationError(
-            f"line {line_number} is not valid UTF-8"
-        ) from error
+        raise ValidationError(f"line {line_number} is not valid UTF-8") from error
 
 
 def _line_byte_length(line: str, *, line_number: int) -> int:
@@ -242,7 +240,7 @@ def _parse_schema(record: dict[str, object]) -> StreamSchema:
             Edge(
                 parent=parent,
                 child=child,
-                lag=raw_edge["lag"],  # type: ignore[arg-type]
+                lag=raw_edge["lag"],
             )
         )
 
@@ -275,9 +273,7 @@ def _read_samples(
         if not line:
             break
         if _line_byte_length(line, line_number=line_number) > MAX_LINE_BYTES:
-            raise ValidationError(
-                f"line {line_number} exceeds {MAX_LINE_BYTES} bytes"
-            )
+            raise ValidationError(f"line {line_number} exceeds {MAX_LINE_BYTES} bytes")
         record = _loads_record(line, line_number=line_number)
         _exact_keys(
             record,
@@ -303,14 +299,13 @@ def _read_samples(
         sample = Sample(
             index=index,
             timestamp_seconds=timestamp_seconds,
-            values=values,  # type: ignore[arg-type]
+            values=values,
         ).validated(schema)
         expected_index = count
         expected_timestamp = expected_index * schema.cadence_seconds
         if sample.index != expected_index:
             raise ValidationError(
-                f"line {line_number} index is {sample.index}; "
-                f"expected {expected_index}"
+                f"line {line_number} index is {sample.index}; expected {expected_index}"
             )
         if sample.timestamp_seconds != expected_timestamp:
             raise ValidationError(
@@ -362,8 +357,7 @@ def write_path(
                 os.link(temporary_path, path)
             except FileExistsError as error:
                 raise ValidationError(
-                    f"refusing to overwrite {path}; "
-                    "pass --overwrite explicitly"
+                    f"refusing to overwrite {path}; pass --overwrite explicitly"
                 ) from error
             temporary_path.unlink()
         return count

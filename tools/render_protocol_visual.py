@@ -34,7 +34,6 @@ from cowbot.evaluation_protocol import (
     read_frozen_protocol,
 )
 
-
 FORMAT = "cowbot.protocol_visual_manifest.v1"
 SOURCE_PATH = "evaluation/protocol.v1.json"
 VISUAL_PATH = "docs/protocol/generated/frozen-unrun-protocol-flow.svg"
@@ -45,9 +44,7 @@ SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b"),
-    re.compile(
-        r"(?i)\b(?:api[_-]?key|secret|password)\s*[:=]\s*\S+"
-    ),
+    re.compile(r"(?i)\b(?:api[_-]?key|secret|password)\s*[:=]\s*\S+"),
     re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}"),
 )
 
@@ -125,8 +122,7 @@ def _facts(protocol: EvaluationProtocol) -> dict[str, object]:
 
     monitoring_start = protocol.monitor_config.calibration_end
     incident_detection_end = (
-        protocol.incident_arm.onset_index
-        + protocol.maximum_detection_delay_samples
+        protocol.incident_arm.onset_index + protocol.maximum_detection_delay_samples
     )
     return {
         "acceptance": acceptance,
@@ -158,7 +154,12 @@ def _render_svg(
     exclusions = ", ".join(str(value) for value in protocol.worked_seed_exclusions)
 
     pieces = [
-        _line(48, 58, "Paired holdout protocol · architecture before execution", css_class="title"),
+        _line(
+            48,
+            58,
+            "Paired holdout protocol · architecture before execution",
+            css_class="title",
+        ),
         _line(
             48,
             88,
@@ -218,7 +219,9 @@ def _render_svg(
         _arrow(348, 413, 386),
         _line(386, 296, "2 · pair by seed", css_class="section"),
         '  <rect x="386" y="318" width="286" height="190" rx="12" class="panel"/>',
-        _line(529, 356, f"{seed_count} pairs", css_class="large-number", anchor="middle"),
+        _line(
+            529, 356, f"{seed_count} pairs", css_class="large-number", anchor="middle"
+        ),
         _line(
             529,
             387,
@@ -298,7 +301,9 @@ def _render_svg(
         '  <rect x="72" y="613" width="405" height="42" rx="8" class="fit-segment"/>',
         '  <rect x="477" y="613" width="270" height="42" rx="8" class="calibration-segment"/>',
         '  <rect x="747" y="613" width="581" height="42" rx="8" class="monitor-segment"/>',
-        _line(274, 640, f"fit targets  < {fit_end}", css_class="timeline", anchor="middle"),
+        _line(
+            274, 640, f"fit targets  < {fit_end}", css_class="timeline", anchor="middle"
+        ),
         _line(
             612,
             640,
@@ -323,7 +328,12 @@ def _render_svg(
             ),
             css_class="small",
         ),
-        _line(48, 750, "4 · four exact endpoints and frozen acceptance counts", css_class="section"),
+        _line(
+            48,
+            750,
+            "4 · four exact endpoints and frozen acceptance counts",
+            css_class="section",
+        ),
     ]
 
     cards = (
@@ -467,9 +477,7 @@ def build_bundle(repo_root: Path) -> dict[str, bytes]:
         "derived_counts": {
             "paired_seeds": facts["seed_count"],
             "required_seed_arm_rows": protocol.expected_case_count,
-            "worked_seed_exclusions": list(
-                protocol.worked_seed_exclusions
-            ),
+            "worked_seed_exclusions": list(protocol.worked_seed_exclusions),
         },
         "format": FORMAT,
         "generator": {
@@ -628,9 +636,7 @@ def _stage_bundle(repo_root: Path, bundle: Mapping[str, bytes]) -> Path:
         raise ProtocolVisualError("build directory cannot be prepared") from error
     if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
         raise ProtocolVisualError("build directory must be a real directory")
-    stage = Path(
-        tempfile.mkdtemp(prefix="cowbot-protocol-visual.", dir=build)
-    )
+    stage = Path(tempfile.mkdtemp(prefix="cowbot-protocol-visual.", dir=build))
     os.chmod(stage, 0o700)
     try:
         for relative, payload in bundle.items():
@@ -680,12 +686,8 @@ def _publish(
                 )
             except FileNotFoundError:
                 destination = None
-            if destination is not None and not stat.S_ISREG(
-                destination.st_mode
-            ):
-                raise ProtocolVisualError(
-                    "protocol destination is not a regular file"
-                )
+            if destination is not None and not stat.S_ISREG(destination.st_mode):
+                raise ProtocolVisualError("protocol destination is not a regular file")
             staged = stage / name
             if staged.read_bytes() != bundle[relative]:
                 raise ProtocolVisualError("staged protocol output changed")
@@ -701,9 +703,7 @@ def _check(repo_root: Path, bundle: Mapping[str, bytes]) -> None:
         raise ProtocolVisualError("committed protocol output is missing")
     actual_names = tuple(sorted(path.name for path in output.iterdir()))
     if actual_names != tuple(sorted(EXPECTED_OUTPUT_NAMES)):
-        raise ProtocolVisualError(
-            "committed protocol output inventory is not exact"
-        )
+        raise ProtocolVisualError("committed protocol output inventory is not exact")
     differences: list[str] = []
     for relative, expected in bundle.items():
         path = repo_root / relative
@@ -724,9 +724,7 @@ def _check(repo_root: Path, bundle: Mapping[str, bytes]) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Write or verify the result-free frozen-protocol documentation."
-        )
+        description=("Write or verify the result-free frozen-protocol documentation.")
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(

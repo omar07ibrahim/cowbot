@@ -19,7 +19,20 @@ input digests and the known fixture boundary.*
 
 ## Run the complete workflow
 
-Python 3.11 or newer is the only runtime dependency.
+Python 3.11 or newer is the only runtime dependency. Create an isolated
+development environment once:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[dev]'
+```
+
+The development extra pins Ruff, strict mypy, and branch coverage so the
+quality receipt does not depend on whichever tools happen to be installed
+globally. The current 163-test suite covers 2,000 of 2,091 runtime statements
+and 610 of 664 branch edges: 95.65% statement, 91.87% branch, and 94.74%
+combined coverage against a 94.5% fail-under gate.
 
 ```bash
 make check

@@ -27,7 +27,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-
 FORMAT = "cowbot.evidence_manifest.v1"
 BOUNDARY_FORMAT = "cowbot.known_boundary.v1"
 DEFAULT_SEED = 20260725
@@ -205,8 +204,7 @@ def _run_cli(
             cwd=working_directory,
             env=_fixed_environment(repo_root),
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
             timeout=120,
             text=True,
@@ -290,15 +288,16 @@ def _isolate_telemetry(source: Path, analysis_directory: Path) -> Path:
 
 
 def _command_text(arguments: Sequence[str], output: str) -> str:
-    rendered = " ".join(shlex.quote(part) for part in ("python", "-m", "cowbot", *arguments))
+    rendered = " ".join(
+        shlex.quote(part) for part in ("python", "-m", "cowbot", *arguments)
+    )
     return f"$ {rendered}\n{output}"
 
 
 def _parse_telemetry(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     try:
         records = [
-            json.loads(line)
-            for line in path.read_text(encoding="utf-8").splitlines()
+            json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
         ]
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise EvidenceError("generated telemetry cannot be parsed") from error
@@ -408,8 +407,7 @@ def _case_record(
                 ],
             }
         ),
-        "ranked_origin_matches_injected_root": ranked_metric
-        == truth["root_metric"],
+        "ranked_origin_matches_injected_root": ranked_metric == truth["root_metric"],
     }
 
 
@@ -614,7 +612,11 @@ def _svg_power_wealth(report: Mapping[str, Any]) -> bytes:
         metric = observation.get("metric")
         index = observation.get("index")
         wealth = observation.get("log_power_wealth")
-        if not isinstance(metric, str) or not isinstance(index, int) or not isinstance(wealth, (int, float)):
+        if (
+            not isinstance(metric, str)
+            or not isinstance(index, int)
+            or not isinstance(wealth, (int, float))
+        ):
             raise EvidenceError("invalid observation fields")
         grouped.setdefault(metric, []).append((index, float(wealth)))
     x0, x1, y0, y1 = 105.0, 1160.0, 145.0, 650.0
@@ -658,8 +660,7 @@ def _svg_power_wealth(report: Mapping[str, Any]) -> bytes:
     }
     for metric, rows in grouped.items():
         points = " ".join(
-            f"{x_scale(index):.2f},{y_scale(value):.2f}"
-            for index, value in rows
+            f"{x_scale(index):.2f},{y_scale(value):.2f}" for index, value in rows
         )
         color = METRIC_COLORS[metric]
         pieces.append(
@@ -704,14 +705,18 @@ def _svg_power_wealth(report: Mapping[str, Any]) -> bytes:
 
 def _svg_triage(report: Mapping[str, Any]) -> bytes:
     input_record = report.get("input")
-    if not isinstance(input_record, dict) or not isinstance(input_record.get("schema"), dict):
+    if not isinstance(input_record, dict) or not isinstance(
+        input_record.get("schema"), dict
+    ):
         raise EvidenceError("report lacks its input schema")
     schema = input_record["schema"]
     edges = schema.get("edges")
     summaries = report.get("node_summaries")
     roots = report.get("root_candidates")
     suppressed = report.get("suppressed_candidates")
-    if not all(isinstance(value, list) for value in (edges, summaries, roots, suppressed)):
+    if not all(
+        isinstance(value, list) for value in (edges, summaries, roots, suppressed)
+    ):
         raise EvidenceError("report lacks triage records")
     positions = {
         "request_rate": (145, 285),
@@ -858,7 +863,9 @@ def _svg_known_boundary(boundary: Mapping[str, Any]) -> bytes:
             raise EvidenceError("boundary case lacks a ranked origin")
         match = bool(case.get("ranked_origin_matches_injected_root"))
         result_color = "#34d399" if match else "#fb7185"
-        result_text = "matches injected root" if match else "does not match injected root"
+        result_text = (
+            "matches injected root" if match else "does not match injected root"
+        )
         pieces.extend(
             (
                 f'  <rect x="{left + 25}" y="525" width="{width - 50}" height="105" rx="10" fill="#07111f" stroke="{result_color}"/>',
@@ -966,23 +973,31 @@ def _scan_text_artifacts(repo_root: Path, stage_root: Path) -> None:
         "\\Users\\",
         *(value for value in (hostname,) if value),
     )
-    for relative_path in (*NON_MANIFEST_ARTIFACTS, "docs/evidence/generated/manifest.json"):
+    for relative_path in (
+        *NON_MANIFEST_ARTIFACTS,
+        "docs/evidence/generated/manifest.json",
+    ):
         path = _bundle_path(stage_root, relative_path)
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as error:
-            raise EvidenceError(f"artifact is not valid UTF-8: {relative_path}") from error
+            raise EvidenceError(
+                f"artifact is not valid UTF-8: {relative_path}"
+            ) from error
         if any(fragment in text for fragment in forbidden_fragments):
-            raise EvidenceError(f"artifact leaks an absolute host path: {relative_path}")
+            raise EvidenceError(
+                f"artifact leaks an absolute host path: {relative_path}"
+            )
         if any(pattern.search(text) for pattern in SECRET_PATTERNS):
             raise EvidenceError(f"artifact resembles secret or PII: {relative_path}")
-        if path.suffix == ".svg":
-            if (
-                '<title id="svg-title">' not in text
-                or '<desc id="svg-desc">' not in text
-                or 'role="img"' not in text
-            ):
-                raise EvidenceError(f"SVG lacks accessible title/description: {relative_path}")
+        if path.suffix == ".svg" and (
+            '<title id="svg-title">' not in text
+            or '<desc id="svg-desc">' not in text
+            or 'role="img"' not in text
+        ):
+            raise EvidenceError(
+                f"SVG lacks accessible title/description: {relative_path}"
+            )
 
 
 def _validate_stage(repo_root: Path, stage_root: Path) -> None:
@@ -1091,11 +1106,13 @@ def _generate_bundle(repo_root: Path, stage_root: Path) -> None:
             "queue-saturation.report.json",
         ),
     )
-    default_truth, default_report, default_telemetry_digest, default_report_digest = _verify_case(
-        default_telemetry,
-        default_simulation_dir / "queue-saturation.truth.json",
-        default_analysis_dir / "queue-saturation.report.json",
-        expected_seed=DEFAULT_SEED,
+    default_truth, default_report, default_telemetry_digest, default_report_digest = (
+        _verify_case(
+            default_telemetry,
+            default_simulation_dir / "queue-saturation.truth.json",
+            default_analysis_dir / "queue-saturation.report.json",
+            expected_seed=DEFAULT_SEED,
+        )
     )
 
     boundary_simulate_args = (
@@ -1131,7 +1148,12 @@ def _generate_bundle(repo_root: Path, stage_root: Path) -> None:
         boundary_analyze_args,
         expected_working_files=("queue-saturation.ndjson",),
     )
-    boundary_truth, boundary_report, boundary_telemetry_digest, boundary_report_digest = _verify_case(
+    (
+        boundary_truth,
+        boundary_report,
+        boundary_telemetry_digest,
+        boundary_report_digest,
+    ) = _verify_case(
         boundary_telemetry,
         boundary_simulation_dir / "queue-saturation.truth.json",
         boundary_analysis_dir / "queue-saturation.report.json",
@@ -1242,8 +1264,7 @@ def _generate_bundle(repo_root: Path, stage_root: Path) -> None:
         },
         "artifacts": artifacts,
         "source_inputs": [
-            _source_record(repo_root, relative_path)
-            for relative_path in SOURCE_INPUTS
+            _source_record(repo_root, relative_path) for relative_path in SOURCE_INPUTS
         ],
     }
     _write_bytes(evidence_dir / "manifest.json", _json_bytes(manifest))
@@ -1269,9 +1290,7 @@ def _assert_no_symlink_components(
     for component in Path(relative_path).parts:
         current /= component
         if current.is_symlink():
-            raise EvidenceError(
-                f"output path contains a symlink: {relative_path}"
-            )
+            raise EvidenceError(f"output path contains a symlink: {relative_path}")
 
 
 def _expected_targets() -> tuple[str, ...]:
@@ -1298,9 +1317,7 @@ def _assert_output_directories_safe(repo_root: Path) -> None:
         for child in path.iterdir():
             child_relative = child.relative_to(repo_root).as_posix()
             if child.name not in expected_by_directory[relative]:
-                raise EvidenceError(
-                    f"unexpected generated output: {child_relative}"
-                )
+                raise EvidenceError(f"unexpected generated output: {child_relative}")
             try:
                 child_mode = child.lstat().st_mode
             except OSError as error:
@@ -1308,9 +1325,7 @@ def _assert_output_directories_safe(repo_root: Path) -> None:
                     f"generated output changed during preflight: {child_relative}"
                 ) from error
             if not stat.S_ISREG(child_mode):
-                raise EvidenceError(
-                    f"generated output is unsafe: {child_relative}"
-                )
+                raise EvidenceError(f"generated output is unsafe: {child_relative}")
 
 
 def _prepare_output_directories(repo_root: Path) -> None:
@@ -1344,9 +1359,7 @@ def _open_output_directory_fds(repo_root: Path) -> dict[str, int]:
             descriptor = os.open(repo_root / relative, flags)
             mode = os.fstat(descriptor).st_mode
             if not stat.S_ISDIR(mode):
-                raise EvidenceError(
-                    f"output path is not a directory: {relative}"
-                )
+                raise EvidenceError(f"output path is not a directory: {relative}")
             descriptors[relative] = descriptor
     except BaseException:
         for descriptor in descriptors.values():
@@ -1370,16 +1383,12 @@ def _copy_destination_backup(
     """Copy one pinned regular destination into an exclusive durable backup."""
 
     source_flags = (
-        os.O_RDONLY
-        | getattr(os, "O_NOFOLLOW", 0)
-        | getattr(os, "O_CLOEXEC", 0)
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     )
     source_fd = os.open(name, source_flags, dir_fd=directory_fd)
     try:
         if not stat.S_ISREG(os.fstat(source_fd).st_mode):
-            raise EvidenceError(
-                f"generated destination is unsafe: {name}"
-            )
+            raise EvidenceError(f"generated destination is unsafe: {name}")
         backup.parent.mkdir(parents=True, exist_ok=True)
         destination_fd = os.open(
             backup,
@@ -1447,9 +1456,8 @@ def _publish(repo_root: Path, stage_root: Path) -> None:
                 directory_fd,
                 destination_name,
             )
-            if (
-                destination_state is not None
-                and not stat.S_ISREG(destination_state.st_mode)
+            if destination_state is not None and not stat.S_ISREG(
+                destination_state.st_mode
             ):
                 raise EvidenceError(f"generated destination is unsafe: {relative}")
             if destination_state is not None:
@@ -1532,8 +1540,7 @@ def _validate_committed(repo_root: Path) -> None:
         raise EvidenceError("committed evidence file set is not exact")
     if (
         not visual_dir.is_dir()
-        or tuple(sorted(path.name for path in visual_dir.iterdir()))
-        != expected_visuals
+        or tuple(sorted(path.name for path in visual_dir.iterdir())) != expected_visuals
     ):
         raise EvidenceError("committed visual file set is not exact")
     for relative in _expected_targets():
@@ -1552,8 +1559,7 @@ def _compare(repo_root: Path, stage_root: Path) -> None:
             differences.append(relative)
     if differences:
         raise EvidenceError(
-            "generated evidence differs from committed bytes: "
-            + ", ".join(differences)
+            "generated evidence differs from committed bytes: " + ", ".join(differences)
         )
 
 
@@ -1562,7 +1568,9 @@ def _parser() -> argparse.ArgumentParser:
         description="Write or verify deterministic COWBOT evidence."
     )
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--write", action="store_true", help="publish regenerated evidence")
+    mode.add_argument(
+        "--write", action="store_true", help="publish regenerated evidence"
+    )
     mode.add_argument(
         "--check",
         action="store_true",

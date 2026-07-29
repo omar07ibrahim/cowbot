@@ -13,7 +13,6 @@ from unittest import mock
 
 from tools import record_evidence
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "docs/evidence/generated"
 VISUALS = ROOT / "docs/visuals/generated"
@@ -51,9 +50,7 @@ class EvidenceTests(unittest.TestCase):
             tuple(sorted(record_evidence.VISUAL_FILES)),
         )
 
-        manifest = json.loads(
-            (EVIDENCE / "manifest.json").read_text(encoding="utf-8")
-        )
+        manifest = json.loads((EVIDENCE / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["format"], record_evidence.FORMAT)
         self.assertEqual(
             [item["path"] for item in manifest["artifacts"]],
@@ -98,9 +95,7 @@ class EvidenceTests(unittest.TestCase):
     def test_default_truth_and_report_bind_exact_telemetry(self) -> None:
         telemetry = EVIDENCE / "queue-saturation.ndjson"
         truth = json.loads(
-            (EVIDENCE / "queue-saturation.truth.json").read_text(
-                encoding="utf-8"
-            )
+            (EVIDENCE / "queue-saturation.truth.json").read_text(encoding="utf-8")
         )
         report_path = EVIDENCE / "queue-saturation.report.json"
         report_bytes = report_path.read_bytes()
@@ -136,15 +131,9 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(retained["ranked_origin_matches_injected_root"])
 
     def test_cli_capture_is_real_digest_bound_and_sanitized(self) -> None:
-        capture = (EVIDENCE / "queue-saturation.cli.txt").read_text(
-            encoding="utf-8"
-        )
-        report_digest = _sha256(
-            EVIDENCE / "queue-saturation.report.json"
-        )
-        telemetry_digest = _sha256(
-            EVIDENCE / "queue-saturation.ndjson"
-        )
+        capture = (EVIDENCE / "queue-saturation.cli.txt").read_text(encoding="utf-8")
+        report_digest = _sha256(EVIDENCE / "queue-saturation.report.json")
+        telemetry_digest = _sha256(EVIDENCE / "queue-saturation.ndjson")
 
         self.assertIn("$ python -m cowbot simulate", capture)
         self.assertIn("$ python -m cowbot analyze", capture)
@@ -171,24 +160,21 @@ class EvidenceTests(unittest.TestCase):
                 self.assertIn('<title id="svg-title">', payload)
                 self.assertIn('<desc id="svg-desc">', payload)
                 self.assertNotIn("<script", payload.lower())
-                self.assertNotIn("http://", payload.replace(
-                    'xmlns="http://www.w3.org/2000/svg"',
-                    "",
-                ))
+                self.assertNotIn(
+                    "http://",
+                    payload.replace(
+                        'xmlns="http://www.w3.org/2000/svg"',
+                        "",
+                    ),
+                )
                 self.assertNotIn("https://", payload)
                 self.assertNotIn(str(ROOT), payload)
                 root = ET.fromstring(payload)
                 self.assertEqual(root.tag, "{http://www.w3.org/2000/svg}svg")
 
-        telemetry_svg = (
-            VISUALS / "default-telemetry.svg"
-        ).read_text(encoding="utf-8")
-        wealth_svg = (
-            VISUALS / "default-power-wealth.svg"
-        ).read_text(encoding="utf-8")
-        boundary_svg = (
-            VISUALS / "known-boundary.svg"
-        ).read_text(encoding="utf-8")
+        telemetry_svg = (VISUALS / "default-telemetry.svg").read_text(encoding="utf-8")
+        wealth_svg = (VISUALS / "default-power-wealth.svg").read_text(encoding="utf-8")
+        boundary_svg = (VISUALS / "known-boundary.svg").read_text(encoding="utf-8")
         self.assertIn("injected onset", telemetry_svg)
         self.assertIn("alarm threshold", wealth_svg)
         self.assertIn("seed 13", boundary_svg)
@@ -441,12 +427,10 @@ class EvidenceTests(unittest.TestCase):
                 "rename",
                 side_effect=OSError("injected recovery move failure"),
             ):
-                recovery, preserve_stage = (
-                    record_evidence._retain_failed_transaction(
-                        root,
-                        stage,
-                        transaction,
-                    )
+                recovery, preserve_stage = record_evidence._retain_failed_transaction(
+                    root,
+                    stage,
+                    transaction,
                 )
 
             self.assertTrue(preserve_stage)

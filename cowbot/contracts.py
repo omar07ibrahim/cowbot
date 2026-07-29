@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isfinite
 from types import MappingProxyType
-from typing import Mapping
 from unicodedata import category, normalize
-
 
 MAX_METRICS = 64
 MAX_EDGES = 256
@@ -54,9 +53,7 @@ class Metric:
             ("maximum", self.maximum),
         ):
             if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValidationError(
-                    f"metric {self.name!r} {field} must be a number"
-                )
+                raise ValidationError(f"metric {self.name!r} {field} must be a number")
         try:
             normalized_minimum = float(self.minimum)
             normalized_maximum = float(self.maximum)
@@ -69,9 +66,7 @@ class Metric:
         if not isfinite(self.minimum) or not isfinite(self.maximum):
             raise ValidationError(f"metric {self.name!r} bounds must be finite")
         if self.minimum >= self.maximum:
-            raise ValidationError(
-                f"metric {self.name!r} minimum must be below maximum"
-            )
+            raise ValidationError(f"metric {self.name!r} minimum must be below maximum")
 
     def validate_value(self, value: float) -> float:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -133,9 +128,7 @@ class StreamSchema:
         ):
             raise ValidationError("only schema version 1 is supported")
         if not self.metrics or len(self.metrics) > MAX_METRICS:
-            raise ValidationError(
-                f"schema requires 1 to {MAX_METRICS} metrics"
-            )
+            raise ValidationError(f"schema requires 1 to {MAX_METRICS} metrics")
         if len(self.edges) > MAX_EDGES:
             raise ValidationError(f"schema exceeds {MAX_EDGES} edges")
         if (
@@ -144,9 +137,7 @@ class StreamSchema:
             or self.cadence_seconds < 1
             or self.cadence_seconds > 86_400
         ):
-            raise ValidationError(
-                "cadence_seconds must be an integer in [1, 86400]"
-            )
+            raise ValidationError("cadence_seconds must be an integer in [1, 86400]")
 
         names = tuple(metric.name for metric in self.metrics)
         if len(names) != len(set(names)):
@@ -208,7 +199,7 @@ class Sample:
     timestamp_seconds: int
     values: Mapping[str, float]
 
-    def validated(self, schema: StreamSchema) -> "Sample":
+    def validated(self, schema: StreamSchema) -> Sample:
         if isinstance(self.index, bool) or not isinstance(self.index, int):
             raise ValidationError("sample index must be an integer")
         if self.index < 0:

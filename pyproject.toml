@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools==83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,12 +8,38 @@ version = "0.1.0"
 description = "Graph-informed replayable triage for multivariate telemetry"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Omar Ibrahim"}]
 dependencies = []
 
 [project.scripts]
 cowbot = "cowbot.cli:main"
 
+[project.optional-dependencies]
+dev = [
+    "coverage[toml]==7.15.2",
+    "mypy==2.3.0",
+    "ruff==0.16.0",
+]
+
 [tool.setuptools]
 packages = ["cowbot"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["cowbot"]
+
+[tool.coverage.run]
+branch = true
+source = ["cowbot"]
+
+[tool.coverage.report]
+fail_under = 94.5
+precision = 2
+show_missing = true
