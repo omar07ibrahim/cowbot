@@ -528,6 +528,7 @@ def _run_git(
     arguments: Sequence[str],
     *,
     maximum: int,
+    pass_fds: tuple[int, ...] = (),
 ) -> bytes:
     completed: subprocess.CompletedProcess[bytes] | None = None
     failed = False
@@ -544,7 +545,9 @@ def _run_git(
             check=False,
             stdin=subprocess.DEVNULL,
             capture_output=True,
+            close_fds=True,
             env=_git_environment(repo_root),
+            pass_fds=pass_fds,
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except (MemoryError, RecursionError):
@@ -563,8 +566,14 @@ def _git_line(
     arguments: Sequence[str],
     *,
     maximum: int = 128,
+    pass_fds: tuple[int, ...] = (),
 ) -> str:
-    payload = _run_git(repo_root, arguments, maximum=maximum)
+    payload = _run_git(
+        repo_root,
+        arguments,
+        maximum=maximum,
+        pass_fds=pass_fds,
+    )
     if not payload.endswith(b"\n") or payload.count(b"\n") != 1 or b"\r" in payload:
         _fail(ResultVerificationErrorCode.INVALID_SOURCE)
     line: str | None = None
@@ -672,11 +681,14 @@ def _parse_tree_inventory(
 def _verify_git_source_identity(
     repo_root: Path,
     intent: HoldoutRunIntent,
+    *,
+    pass_fds: tuple[int, ...] = (),
 ) -> None:
     source = intent.source
     object_format = _git_line(
         repo_root,
         ("rev-parse", "--show-object-format=storage"),
+        pass_fds=pass_fds,
     )
     if (
         object_format != source.object_format
@@ -685,11 +697,25 @@ def _verify_git_source_identity(
     ):
         _fail(ResultVerificationErrorCode.INVALID_SOURCE)
     if (
-        _git_line(repo_root, ("cat-file", "-t", source.commit_oid)) != "commit"
-        or _git_line(repo_root, ("cat-file", "-t", source.tree_oid)) != "tree"
+        _git_line(
+            repo_root,
+            ("cat-file", "-t", source.commit_oid),
+            pass_fds=pass_fds,
+        )
+        != "commit"
+        or _git_line(
+            repo_root,
+            ("cat-file", "-t", source.tree_oid),
+            pass_fds=pass_fds,
+        )
+        != "tree"
     ):
         _fail(ResultVerificationErrorCode.INVALID_SOURCE)
-    size_text = _git_line(repo_root, ("cat-file", "-s", source.commit_oid))
+    size_text = _git_line(
+        repo_root,
+        ("cat-file", "-s", source.commit_oid),
+        pass_fds=pass_fds,
+    )
     if (
         not size_text.isascii()
         or not size_text.isdigit()
@@ -700,6 +726,7 @@ def _verify_git_source_identity(
         repo_root,
         ("cat-file", "commit", source.commit_oid),
         maximum=MAX_GIT_COMMIT_BYTES,
+        pass_fds=pass_fds,
     )
     if len(commit_payload) != int(size_text):
         _fail(ResultVerificationErrorCode.INVALID_SOURCE)
@@ -721,6 +748,7 @@ def _verify_git_source_identity(
             *FIXED_SOURCE_INVENTORY_PATHS,
         ),
         maximum=MAX_GIT_TREE_LISTING_BYTES,
+        pass_fds=pass_fds,
     )
     records = _parse_tree_inventory(tree_listing, object_format=object_format)
     if any(
@@ -840,24 +868,19 @@ def _decode_protocol(protocol_bytes: bytes) -> HoldoutPlan:
     return plan
 
 
-def verify_evaluation_results(
+def _verify_open_evaluation_results(
     repo_root: Path,
+    root_fd: int,
+    evaluation_fd: int,
+    *,
+    git_pass_fds: tuple[int, ...] = (),
 ) -> EvaluationResultVerificationReceipt:
-    """Verify one completed result directory without mutating the filesystem."""
-
-    root_fd = _open_root(repo_root)
-    evaluation_fd = -1
     results_fd = -1
     per_seed: _ReadFile | None = None
     summary: _ReadFile | None = None
     attempt: _ReadFile | None = None
     captured_sources: tuple[_OpenSourceFile, ...] = ()
     try:
-        evaluation_fd = _open_directory_at(
-            root_fd,
-            "evaluation",
-            ResultVerificationErrorCode.INVALID_PROTOCOL,
-        )
         protocol_file = _read_regular_file_at(
             evaluation_fd,
             "protocol.v1.json",
@@ -961,7 +984,11 @@ def verify_evaluation_results(
         if invalid_bundle or verified is None:
             _fail(ResultVerificationErrorCode.INVALID_BUNDLE)
 
-        _verify_git_source_identity(repo_root, intent)
+        _verify_git_source_identity(
+            repo_root,
+            intent,
+            pass_fds=git_pass_fds,
+        )
         _verify_source_inventory(root_fd, intent)
         if (
             _list_result_entries(results_fd) != entries
@@ -1000,7 +1027,11 @@ def verify_evaluation_results(
         # barrier.  A mutation of an early source or result while later
         # sources are being read is therefore visible before a receipt exists.
         captured_sources = _capture_source_inventory(root_fd, intent)
-        _verify_git_source_identity(repo_root, intent)
+        _verify_git_source_identity(
+            repo_root,
+            intent,
+            pass_fds=git_pass_fds,
+        )
         if not _source_inventory_is_current(captured_sources):
             _fail(ResultVerificationErrorCode.INVALID_SOURCE)
         if (
@@ -1074,3 +1105,88 @@ def verify_evaluation_results(
         _close_noexcept(evaluation_fd)
         _close_noexcept(root_fd)
     _fail(ResultVerificationErrorCode.INVALID_NAMESPACE)
+
+
+def verify_evaluation_results(
+    repo_root: Path,
+) -> EvaluationResultVerificationReceipt:
+    """Verify one completed result directory without mutating the filesystem."""
+
+    root_fd = _open_root(repo_root)
+    evaluation_fd = -1
+    try:
+        evaluation_fd = _open_directory_at(
+            root_fd,
+            "evaluation",
+            ResultVerificationErrorCode.INVALID_PROTOCOL,
+        )
+    except BaseException:
+        _close_noexcept(evaluation_fd)
+        _close_noexcept(root_fd)
+        raise
+    return _verify_open_evaluation_results(
+        repo_root,
+        root_fd,
+        evaluation_fd,
+    )
+
+
+def verify_evaluation_results_anchored(
+    repo_root: Path,
+    *,
+    root_fd: int,
+    evaluation_fd: int,
+) -> EvaluationResultVerificationReceipt:
+    """Verify through retained root/evaluation descriptors owned by the caller."""
+
+    if (
+        not isinstance(repo_root, Path)
+        or not repo_root.is_absolute()
+        or type(root_fd) is not int
+        or root_fd < 0
+        or type(evaluation_fd) is not int
+        or evaluation_fd < 0
+        or root_fd == evaluation_fd
+    ):
+        _fail(ResultVerificationErrorCode.INVALID_ROOT)
+
+    root_copy = -1
+    evaluation_copy = -1
+    try:
+        root_copy = os.dup(root_fd)
+        evaluation_copy = os.dup(evaluation_fd)
+        root_metadata = os.fstat(root_copy)
+        evaluation_metadata = os.fstat(evaluation_copy)
+        if (
+            root_metadata.st_uid != os.geteuid()
+            or evaluation_metadata.st_uid != os.geteuid()
+            or not _safe_directory_mode(root_metadata.st_mode)
+            or not _safe_directory_mode(evaluation_metadata.st_mode)
+            or not _root_is_current(repo_root, root_copy)
+            or not _same_open_directory(
+                root_copy,
+                "evaluation",
+                evaluation_copy,
+            )
+        ):
+            raise OSError
+    except OSError:
+        _close_noexcept(evaluation_copy)
+        _close_noexcept(root_copy)
+        _fail(ResultVerificationErrorCode.INVALID_ROOT)
+    except BaseException:
+        _close_noexcept(evaluation_copy)
+        _close_noexcept(root_copy)
+        raise
+
+    owned_root = root_copy
+    owned_evaluation = evaluation_copy
+    root_copy = -1
+    evaluation_copy = -1
+    owned_repo_root = Path(f"/proc/self/fd/{owned_root}/evaluation/..")
+    return _verify_open_evaluation_results(
+        owned_repo_root,
+        owned_root,
+        owned_evaluation,
+        git_pass_fds=(owned_root,),
+    )

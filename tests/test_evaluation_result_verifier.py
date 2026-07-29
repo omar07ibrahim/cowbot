@@ -40,6 +40,7 @@ from cowbot.evaluation_result_verifier import (
     ResultVerificationError,
     ResultVerificationErrorCode,
     verify_evaluation_results,
+    verify_evaluation_results_anchored,
 )
 from cowbot.evaluation_results import (
     FIXED_SOURCE_INVENTORY_PATHS,
@@ -326,6 +327,30 @@ class ResultVerifierFixture(unittest.TestCase):
 
 
 class ResultVerifierHappyPathTests(ResultVerifierFixture):
+    def test_anchored_api_survives_repository_path_rename(self) -> None:
+        root_fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        evaluation_fd = os.open(
+            "evaluation",
+            os.O_RDONLY | os.O_DIRECTORY,
+            dir_fd=root_fd,
+        )
+        moved = self.root.with_name(f"{self.root.name}-moved")
+        try:
+            self.root.rename(moved)
+            anchored_root = Path(f"/proc/self/fd/{root_fd}/evaluation/..")
+            receipt = verify_evaluation_results_anchored(
+                anchored_root,
+                root_fd=root_fd,
+                evaluation_fd=evaluation_fd,
+            )
+            self.assertEqual(receipt.status, VERIFICATION_STATUS)
+            self.assertFalse(self.root.exists())
+        finally:
+            if moved.exists():
+                moved.rename(self.root)
+            os.close(evaluation_fd)
+            os.close(root_fd)
+
     def test_verifies_exact_bundle_and_returns_redacted_frozen_receipt(self) -> None:
         receipt = verify_evaluation_results(self.root)
         per_seed = (self.root / "evaluation/results" / PER_SEED_FILENAME).read_bytes()
@@ -818,6 +843,34 @@ class ResultVerifierGitBindingTests(unittest.TestCase):
         self.assertEqual(receipt.status, VERIFICATION_STATUS)
         self.assertTrue(receipt.source_inventory_verified)
 
+    def test_anchored_real_git_survives_repository_path_swap(self) -> None:
+        root_fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        evaluation_fd = os.open(
+            "evaluation",
+            os.O_RDONLY | os.O_DIRECTORY,
+            dir_fd=root_fd,
+        )
+        moved = self.root.with_name(f"{self.root.name}-anchored")
+        try:
+            self.root.rename(moved)
+            self.root.mkdir(mode=0o700)
+            (self.root / "decoy").write_text("not the retained repository\n")
+            anchored_root = Path(f"/proc/self/fd/{root_fd}/evaluation/..")
+            receipt = verify_evaluation_results_anchored(
+                anchored_root,
+                root_fd=root_fd,
+                evaluation_fd=evaluation_fd,
+            )
+            self.assertEqual(receipt.status, VERIFICATION_STATUS)
+            self.assertTrue(receipt.source_inventory_verified)
+        finally:
+            if self.root.exists():
+                shutil.rmtree(self.root)
+            if moved.exists():
+                moved.rename(self.root)
+            os.close(evaluation_fd)
+            os.close(root_fd)
+
     def test_verifies_real_sha256_object_repository(self) -> None:
         shutil.rmtree(self.root / "evaluation/results")
         shutil.rmtree(self.root / ".git")
@@ -934,6 +987,8 @@ class ResultVerifierGitParsingTests(unittest.TestCase):
             self.assertEqual(verifier._run_git(ROOT, ("status",), maximum=1), b"x")
         arguments = run.call_args.args[0]
         environment = run.call_args.kwargs["env"]
+        self.assertEqual(run.call_args.kwargs["pass_fds"], ())
+        self.assertIs(run.call_args.kwargs["close_fds"], True)
         self.assertEqual(
             arguments[0:3], ("git", "--no-replace-objects", "--literal-pathspecs")
         )
@@ -943,6 +998,21 @@ class ResultVerifierGitParsingTests(unittest.TestCase):
         self.assertEqual(environment["GIT_NO_REPLACE_OBJECTS"], "1")
         self.assertEqual(environment["GIT_OPTIONAL_LOCKS"], "0")
         self.assertNotIn("SSH_AUTH_SOCK", environment)
+
+        with patch(
+            "cowbot.evaluation_result_verifier.subprocess.run",
+            return_value=completed,
+        ) as anchored_run:
+            self.assertEqual(
+                verifier._run_git(
+                    ROOT,
+                    ("status",),
+                    maximum=1,
+                    pass_fds=(17,),
+                ),
+                b"x",
+            )
+        self.assertEqual(anchored_run.call_args.kwargs["pass_fds"], (17,))
 
         failures = (
             OSError("sensitive path"),
