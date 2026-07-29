@@ -44,10 +44,11 @@ make distribution-check
 ```
 
 The distribution gate exports one immutable Git tree twice, requires
-byte-identical independently built wheels, runs the complete tests and
-evidence checks from the verified sdist, then exercises the installed
-`cowbot` entry point in a fresh environment. Its private receipts bind the
-tree, build epoch, wheel, telemetry, truth, and report digests. Read the
+byte-identical timestamp-pinned source exports and independently built wheels,
+runs the complete tests and evidence checks from the verified sdist, then
+exercises the installed `cowbot` entry point in a fresh environment. Its
+private receipts bind the tree, build epoch, source export, wheel, telemetry,
+truth, and report digests. Read the
 [distribution integrity contract](docs/distribution-integrity.md).
 
 The explicit detector command is:

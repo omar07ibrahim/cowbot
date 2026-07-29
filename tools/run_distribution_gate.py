@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import NoReturn
 
@@ -26,8 +27,9 @@ from tools import verify_distribution
 
 BUILD_ROOT = ROOT / "build"
 SMOKE_SCHEMA_VERSION = "cowbot-installed-wheel-smoke-v1"
-DISTRIBUTION_RECEIPT_SCHEMA_VERSION = "cowbot-distribution-gate-receipt-v1"
+DISTRIBUTION_RECEIPT_SCHEMA_VERSION = "cowbot-distribution-gate-receipt-v2"
 OBJECT_ID = re.compile(r"\A[0-9a-f]{40}(?:[0-9a-f]{24})?\Z")
+GIT_TAR_UMASK = "0002"
 SOURCE_CHECKS = (
     ("-B", "-m", "unittest", "discover", "-s", "tests"),
     ("-B", "tools/record_evidence.py", "--check"),
@@ -64,6 +66,8 @@ class BuiltArtifacts:
     rebuild: Path
     source_primary: Path
     source_rebuild: Path
+    source_archive_sha256: str
+    source_archive_size: int
 
 
 def _fail(message: str) -> NoReturn:
@@ -108,6 +112,7 @@ def _safe_environment(
     environment = {
         "GIT_CONFIG_GLOBAL": os.devnull,
         "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_ATTR_NOSYSTEM": "1",
         "HOME": private_home,
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
@@ -185,6 +190,117 @@ def _source_date_epoch(commit_oid: str | None, explicit: int | None) -> int:
     if not text.isascii() or not text.isdigit():
         _fail("treeish does not resolve to a commit timestamp")
     return int(text)
+
+
+def _git_archive_mtime(source_date_epoch: int) -> str:
+    """Render an epoch as the unambiguous UTC date accepted by Git archive."""
+
+    try:
+        instant = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(
+            seconds=source_date_epoch
+        )
+    except OverflowError:
+        _fail("source-date-epoch is outside Git archive's supported UTC range")
+    return instant.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _git_object_format(source: SourceIdentity) -> str:
+    expected_length = len(source.tree_oid)
+    if expected_length not in (40, 64) or (
+        source.commit_oid is not None and len(source.commit_oid) != expected_length
+    ):
+        _fail("source object IDs do not use one supported Git object format")
+    return "sha1" if expected_length == 40 else "sha256"
+
+
+def _private_archive_repository(
+    work_root: Path,
+    *,
+    source: SourceIdentity,
+    environment: Mapping[str, str],
+) -> tuple[Path, dict[str, str]]:
+    """Create archive metadata that cannot inherit the source repo's config."""
+
+    object_format_result = _run(
+        ("git", "rev-parse", "--show-object-format"),
+        cwd=ROOT,
+        environment=environment,
+        timeout=15,
+    )
+    objects_result = _run(
+        ("git", "rev-parse", "--path-format=absolute", "--git-path", "objects"),
+        cwd=ROOT,
+        environment=environment,
+        timeout=15,
+    )
+    try:
+        object_format_text = object_format_result.stdout.decode(
+            "ascii",
+            errors="strict",
+        )
+        objects_text = objects_result.stdout.decode("utf-8", errors="strict")
+        if (
+            object_format_text != f"{_git_object_format(source)}\n"
+            or "\x00" in objects_text
+            or not objects_text.endswith("\n")
+            or objects_text.count("\n") != 1
+            or "\r" in objects_text
+        ):
+            raise ValueError
+        object_directory = Path(objects_text[:-1]).resolve(strict=True)
+        if not object_directory.is_absolute() or not object_directory.is_dir():
+            raise ValueError
+    except (OSError, RuntimeError, UnicodeError, ValueError):
+        _fail("Git object directory cannot be isolated for source export")
+
+    archive_git_dir = work_root / "archive.git"
+    empty_template = work_root / "empty-git-template"
+    empty_template.mkdir(mode=0o700)
+    init_environment = dict(environment)
+    init_environment["GIT_TEMPLATE_DIR"] = str(empty_template)
+    _run(
+        (
+            "git",
+            "init",
+            "--quiet",
+            "--bare",
+            f"--template={empty_template}",
+            f"--object-format={_git_object_format(source)}",
+            str(archive_git_dir),
+        ),
+        cwd=work_root,
+        environment=init_environment,
+        timeout=30,
+    )
+    alternates_path = archive_git_dir / "objects" / "info" / "alternates"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    directory_fd = -1
+    try:
+        descriptor = os.open(alternates_path, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(f"{object_directory}\n".encode())
+            stream.flush()
+            os.fsync(stream.fileno())
+        directory_fd = os.open(
+            alternates_path.parent,
+            os.O_RDONLY | os.O_DIRECTORY,
+        )
+        os.fsync(directory_fd)
+    except OSError:
+        _fail("private Git object alternate cannot be installed safely")
+    finally:
+        if directory_fd >= 0:
+            os.close(directory_fd)
+    archive_environment = dict(environment)
+    archive_environment.update(
+        {
+            "GIT_NO_LAZY_FETCH": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+        }
+    )
+    return archive_git_dir, archive_environment
 
 
 def _resolve_source(treeish: str, explicit_epoch: int | None) -> SourceIdentity:
@@ -349,31 +465,61 @@ def _build_artifacts(
         source_date_epoch=source.source_date_epoch,
         home=private_home,
     )
+    archive_mtime = _git_archive_mtime(source.source_date_epoch)
+    archive_git_dir, archive_environment = _private_archive_repository(
+        work_root,
+        source=source,
+        environment=environment,
+    )
 
     _run(
         (
             "git",
+            f"--git-dir={archive_git_dir}",
+            "-c",
+            f"tar.umask={GIT_TAR_UMASK}",
             "archive",
             "--format=tar",
+            f"--mtime={archive_mtime}",
             f"--output={primary_archive}",
             source.tree_oid,
         ),
-        cwd=ROOT,
-        environment=environment,
+        cwd=work_root,
+        environment=archive_environment,
         timeout=30,
     )
     _run(
         (
             "git",
+            f"--git-dir={archive_git_dir}",
+            "-c",
+            f"tar.umask={GIT_TAR_UMASK}",
             "archive",
             "--format=tar",
+            f"--mtime={archive_mtime}",
             f"--output={rebuild_archive}",
             source.tree_oid,
         ),
-        cwd=ROOT,
-        environment=environment,
+        cwd=work_root,
+        environment=archive_environment,
         timeout=30,
     )
+    try:
+        source_archive_sha256 = verify_distribution._file_sha256(primary_archive)
+        rebuild_archive_sha256 = verify_distribution._file_sha256(rebuild_archive)
+        source_archive_size = primary_archive.stat().st_size
+        if (
+            source_archive_size <= 0
+            or source_archive_size != rebuild_archive.stat().st_size
+            or source_archive_sha256 != rebuild_archive_sha256
+            or not verify_distribution._files_equal(
+                primary_archive,
+                rebuild_archive,
+            )
+        ):
+            _fail("immutable source exports are not byte-for-byte identical")
+    except (OSError, verify_distribution.VerificationError) as error:
+        _fail(f"immutable source exports cannot be verified: {error}")
     _extract_git_archive(primary_archive, source_primary)
     _extract_git_archive(rebuild_archive, source_rebuild)
     _run(
@@ -400,6 +546,8 @@ def _build_artifacts(
         rebuild=rebuild,
         source_primary=source_primary,
         source_rebuild=source_rebuild,
+        source_archive_sha256=source_archive_sha256,
+        source_archive_size=source_archive_size,
     )
 
 
@@ -686,6 +834,28 @@ def _exercise_installed_wheel(
     }
 
 
+def _distribution_receipt(
+    *,
+    source: SourceIdentity,
+    artifacts: BuiltArtifacts,
+    verification: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "ok": True,
+        "schema_version": DISTRIBUTION_RECEIPT_SCHEMA_VERSION,
+        "source": source.receipt(),
+        "source_export": {
+            "bytes": artifacts.source_archive_size,
+            "format": "git-archive-tar",
+            "git_object_format": _git_object_format(source),
+            "mtime_utc": _git_archive_mtime(source.source_date_epoch),
+            "sha256": artifacts.source_archive_sha256,
+            "tar_umask": GIT_TAR_UMASK,
+        },
+        "verification": dict(verification),
+    }
+
+
 def run_gate(
     *,
     treeish: str,
@@ -707,12 +877,11 @@ def run_gate(
             config = verify_distribution._load_project_config(artifacts.source_primary)
         except verify_distribution.VerificationError as error:
             _fail(f"distribution verification failed: {error}")
-        distribution_receipt: dict[str, object] = {
-            "ok": True,
-            "schema_version": DISTRIBUTION_RECEIPT_SCHEMA_VERSION,
-            "source": source.receipt(),
-            "verification": distribution_report,
-        }
+        distribution_receipt = _distribution_receipt(
+            source=source,
+            artifacts=artifacts,
+            verification=distribution_report,
+        )
         distribution_receipt_bytes = _canonical_json(distribution_receipt)
         _write_private_receipt(
             work_root / "distribution-verification.json",

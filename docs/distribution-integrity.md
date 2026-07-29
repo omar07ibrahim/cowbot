@@ -13,8 +13,9 @@ make distribution-check
 The command creates one private, ignored directory under `build/` and leaves
 two mode-`0600` canonical JSON receipts there. The receipts bind the resolved
 Git tree, optional commit, `SOURCE_DATE_EPOCH`, verified wheel digest, installed
-smoke outputs, and each output digest. The gate does not modify source or
-committed evidence.
+smoke outputs, and each output digest. The distribution receipt also records
+the exact byte length and SHA-256 of the reproducible Git source export. The
+gate does not modify source or committed evidence.
 
 ## Independent build paths
 
@@ -22,10 +23,15 @@ The gate first resolves `--treeish` once to an immutable Git tree object. It
 exports that exact object into two separate private source directories. The
 primary path creates an sdist and then lets `build` create the wheel from that
 sdist. The second path builds a wheel directly from the other export. Both
-builds receive the same timestamp through `SOURCE_DATE_EPOCH`; neither reads
-the surrounding working tree. Child processes receive a private home and XDG
-root, disabled user/system Git configuration, disabled pip configuration and
-cache, and no inherited cloud, token, or proxy variables.
+`git archive` calls run through a private bare metadata directory backed only
+by the resolved object database, so repository-local archive configuration
+cannot alter their output. They pin every tar header to `SOURCE_DATE_EPOCH` in
+strict UTC and pin Git's tar umask to `0002`. The gate requires the two
+source-export tar files to be byte-for-byte identical before extracting either
+one. Both builds receive the same timestamp; neither reads the surrounding
+working tree. Child processes receive a private home and XDG root, disabled
+user/system Git configuration, disabled pip configuration and cache, and no
+inherited cloud, token, or proxy variables.
 
 The default is `HEAD`, so all staged, unstaged, and untracked changes are
 deliberately ignored. To verify the exact prospective index before committing:
@@ -45,7 +51,7 @@ compression ratios, and verifies every wheel `RECORD` digest and size.
 
 The expected wheel contains exactly:
 
-- the twelve byte-identical `cowbot/*.py` runtime modules;
+- every top-level `cowbot/*.py` runtime module, byte-identical to the export;
 - the `cowbot = cowbot.cli:main` console entry point;
 - one pure-Python `py3-none-any` tag;
 - metadata matching `pyproject.toml`, including the declared development
@@ -93,8 +99,17 @@ truth, and report SHA-256 values.
 
 ## Deliberate non-claims
 
-Wheel byte reproducibility is checked because the two wheel builds share
-source bytes, backend version, and `SOURCE_DATE_EPOCH`. Compressed sdist byte
-reproducibility is **not checked or claimed**: local filesystem modes and tar
-headers can legitimately differ from a fresh GitHub runner. Instead, the gate
-checks the complete sdist file inventory and every repository-controlled byte.
+The two uncompressed source exports created by one gate invocation, using one
+Git executable, and the two wheels are independently required to be
+byte-reproducible. Cross-Git-version archive identity is **not claimed**; the
+receipt binds the exact accepted export bytes instead. Compressed sdist byte
+reproducibility is also **not checked or claimed**: backend-generated gzip and
+tar metadata are a different product boundary. Instead, the gate checks the
+complete sdist file inventory and every repository-controlled byte.
+
+The gate is an integrity and reproducibility check, not a same-user process
+sandbox. Its private mode-`0700` work root excludes other users, but the command
+assumes that no concurrent process running as the repository owner mutates
+files inside that freshly created root while the gate is executing. Downstream
+one-shot publication must independently bind the completed artifacts it
+consumes instead of treating path names or receipt assertions as authority.

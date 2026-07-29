@@ -1225,12 +1225,40 @@ class DistributionGateUnitTests(unittest.TestCase):
             commit_oid=None,
             source_date_epoch=789,
         )
+        object_directory = work_root / "objects"
+        object_directory.mkdir()
 
         def extract(_archive: Path, destination: Path) -> None:
             destination.mkdir(mode=0o700)
 
+        def run_command(
+            arguments: tuple[str, ...],
+            **_kwargs: object,
+        ) -> subprocess.CompletedProcess[bytes]:
+            if arguments == ("git", "rev-parse", "--show-object-format"):
+                return subprocess.CompletedProcess(arguments, 0, b"sha1\n", b"")
+            if arguments[:2] == ("git", "rev-parse"):
+                return subprocess.CompletedProcess(
+                    arguments,
+                    0,
+                    f"{object_directory}\n".encode(),
+                    b"",
+                )
+            if arguments[:2] == ("git", "init"):
+                (Path(arguments[-1]) / "objects" / "info").mkdir(parents=True)
+            for argument in arguments:
+                if argument.startswith("--output="):
+                    Path(argument.removeprefix("--output=")).write_bytes(
+                        b"canonical source export"
+                    )
+            return subprocess.CompletedProcess(arguments, 0, b"", b"")
+
         with (
-            mock.patch.object(run_distribution_gate, "_run") as run,
+            mock.patch.object(
+                run_distribution_gate,
+                "_run",
+                side_effect=run_command,
+            ) as run,
             mock.patch.object(
                 run_distribution_gate,
                 "_extract_git_archive",
@@ -1251,15 +1279,278 @@ class DistributionGateUnitTests(unittest.TestCase):
             [artifacts.source_primary, artifacts.source_rebuild],
         )
         commands = [call.args[0] for call in run.call_args_list]
-        self.assertEqual(commands[0][-1], source.tree_oid)
-        self.assertEqual(commands[1][-1], source.tree_oid)
+        archive_commands = [command for command in commands if "archive" in command]
+        self.assertEqual(len(archive_commands), 2)
+        for command in archive_commands:
+            self.assertIn("--mtime=1970-01-01T00:13:09Z", command)
+            self.assertIn("tar.umask=0002", command)
+            self.assertIn(
+                f"--git-dir={work_root / 'archive.git'}",
+                command,
+            )
+            self.assertEqual(command[-1], source.tree_oid)
         self.assertEqual(
-            run.call_args_list[2].kwargs["cwd"],
+            artifacts.source_archive_sha256,
+            hashlib.sha256(b"canonical source export").hexdigest(),
+        )
+        self.assertEqual(
+            artifacts.source_archive_size,
+            len(b"canonical source export"),
+        )
+        build_calls = [
+            call
+            for call in run.call_args_list
+            if call.args[0][0] == run_distribution_gate.sys.executable
+        ]
+        self.assertEqual(
+            build_calls[0].kwargs["cwd"],
             artifacts.source_primary,
         )
         self.assertEqual(
-            run.call_args_list[3].kwargs["cwd"],
+            build_calls[1].kwargs["cwd"],
             artifacts.source_rebuild,
+        )
+
+    def test_build_paths_reject_nonidentical_immutable_source_exports(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        work_root = Path(temporary.name)
+        source = run_distribution_gate.SourceIdentity(
+            tree_oid="c" * 40,
+            commit_oid=None,
+            source_date_epoch=789,
+        )
+        object_directory = work_root / "objects"
+        object_directory.mkdir()
+        archive_count = 0
+
+        def run_command(
+            arguments: tuple[str, ...],
+            **_kwargs: object,
+        ) -> subprocess.CompletedProcess[bytes]:
+            nonlocal archive_count
+            if arguments == ("git", "rev-parse", "--show-object-format"):
+                return subprocess.CompletedProcess(arguments, 0, b"sha1\n", b"")
+            if arguments[:2] == ("git", "rev-parse"):
+                return subprocess.CompletedProcess(
+                    arguments,
+                    0,
+                    f"{object_directory}\n".encode(),
+                    b"",
+                )
+            if arguments[:2] == ("git", "init"):
+                (Path(arguments[-1]) / "objects" / "info").mkdir(parents=True)
+            for argument in arguments:
+                if argument.startswith("--output="):
+                    archive_count += 1
+                    Path(argument.removeprefix("--output=")).write_bytes(
+                        f"source export {archive_count}".encode()
+                    )
+            return subprocess.CompletedProcess(arguments, 0, b"", b"")
+
+        with (
+            mock.patch.object(
+                run_distribution_gate,
+                "_run",
+                side_effect=run_command,
+            ),
+            self.assertRaisesRegex(
+                run_distribution_gate.GateError,
+                "byte-for-byte identical",
+            ),
+        ):
+            run_distribution_gate._build_artifacts(
+                work_root,
+                source=source,
+            )
+
+    def test_git_archive_uses_the_requested_epoch_in_real_tar_headers(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        archive_path = Path(temporary.name) / "source.tar"
+        environment = {
+            **run_distribution_gate._safe_environment(),
+            "TZ": "Pacific/Honolulu",
+        }
+        tree_oid = subprocess.run(
+            ("git", "rev-parse", "--verify", "HEAD^{tree}"),
+            cwd=run_distribution_gate.ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=environment,
+        ).stdout.strip()
+        subprocess.run(
+            (
+                "git",
+                "archive",
+                "--format=tar",
+                f"--mtime={run_distribution_gate._git_archive_mtime(789)}",
+                f"--output={archive_path}",
+                tree_oid,
+            ),
+            cwd=run_distribution_gate.ROOT,
+            check=True,
+            env=environment,
+        )
+
+        with tarfile.open(archive_path, mode="r:") as archive:
+            members = archive.getmembers()
+
+        self.assertTrue(members)
+        self.assertEqual({member.mtime for member in members}, {789})
+
+    def test_private_archive_repo_ignores_source_repo_tar_config(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        temporary_root = Path(temporary.name)
+        repository = temporary_root / "source"
+        work_root = temporary_root / "gate"
+        home = work_root / "home"
+        repository.mkdir()
+        work_root.mkdir()
+        home.mkdir()
+        environment = run_distribution_gate._safe_environment(home=home)
+        subprocess.run(
+            ("git", "init", "--quiet", repository),
+            check=True,
+            env=environment,
+        )
+        (repository / "payload.txt").write_bytes(b"immutable payload\n")
+        subprocess.run(
+            ("git", "-C", str(repository), "add", "payload.txt"),
+            check=True,
+            env=environment,
+        )
+        tree_oid = subprocess.run(
+            ("git", "-C", str(repository), "write-tree"),
+            check=True,
+            capture_output=True,
+            env=environment,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(
+            (
+                "git",
+                "-C",
+                str(repository),
+                "config",
+                "tar.umask",
+                "0077",
+            ),
+            check=True,
+            env=environment,
+        )
+        subprocess.run(
+            (
+                "git",
+                "-C",
+                str(repository),
+                "config",
+                "tar.tar.command",
+                "false",
+            ),
+            check=True,
+            env=environment,
+        )
+        source = run_distribution_gate.SourceIdentity(
+            tree_oid=tree_oid,
+            commit_oid=None,
+            source_date_epoch=789,
+        )
+        with mock.patch.object(run_distribution_gate, "ROOT", repository):
+            archive_git_dir, archive_environment = (
+                run_distribution_gate._private_archive_repository(
+                    work_root,
+                    source=source,
+                    environment=environment,
+                )
+            )
+        archive_path = work_root / "source.tar"
+        subprocess.run(
+            (
+                "git",
+                f"--git-dir={archive_git_dir}",
+                "-c",
+                f"tar.umask={run_distribution_gate.GIT_TAR_UMASK}",
+                "archive",
+                "--format=tar",
+                f"--mtime={run_distribution_gate._git_archive_mtime(789)}",
+                f"--output={archive_path}",
+                tree_oid,
+            ),
+            cwd=work_root,
+            check=True,
+            env=archive_environment,
+        )
+
+        with tarfile.open(archive_path, mode="r:") as archive:
+            members = archive.getmembers()
+
+        self.assertEqual([member.name for member in members], ["payload.txt"])
+        self.assertEqual(members[0].mtime, 789)
+        self.assertEqual(members[0].mode, 0o664)
+        alternates = archive_git_dir / "objects" / "info" / "alternates"
+        self.assertEqual(
+            alternates.read_text(),
+            f"{(repository / '.git' / 'objects').resolve()}\n",
+        )
+        self.assertEqual(stat.S_IMODE(alternates.stat().st_mode), 0o600)
+
+    def test_git_archive_mtime_rejects_unrepresentable_epoch(self) -> None:
+        with self.assertRaisesRegex(
+            run_distribution_gate.GateError,
+            "supported UTC range",
+        ):
+            run_distribution_gate._git_archive_mtime(10**30)
+
+    def test_distribution_receipt_v2_binds_exact_source_export_contract(
+        self,
+    ) -> None:
+        source = run_distribution_gate.SourceIdentity(
+            tree_oid="a" * 40,
+            commit_oid="b" * 40,
+            source_date_epoch=789,
+        )
+        artifacts = run_distribution_gate.BuiltArtifacts(
+            primary=Path("/private/dist-primary"),
+            rebuild=Path("/private/dist-rebuild"),
+            source_primary=Path("/private/source-primary"),
+            source_rebuild=Path("/private/source-rebuild"),
+            source_archive_sha256="c" * 64,
+            source_archive_size=12_345,
+        )
+        verification: dict[str, object] = {
+            "ok": True,
+            "schema_version": "cowbot-distribution-verification-v1",
+        }
+
+        receipt = run_distribution_gate._distribution_receipt(
+            source=source,
+            artifacts=artifacts,
+            verification=verification,
+        )
+
+        self.assertEqual(
+            receipt,
+            {
+                "ok": True,
+                "schema_version": "cowbot-distribution-gate-receipt-v2",
+                "source": {
+                    "commit_oid": "b" * 40,
+                    "source_date_epoch": 789,
+                    "tree_oid": "a" * 40,
+                },
+                "source_export": {
+                    "bytes": 12_345,
+                    "format": "git-archive-tar",
+                    "git_object_format": "sha1",
+                    "mtime_utc": "1970-01-01T00:13:09Z",
+                    "sha256": "c" * 64,
+                    "tar_umask": "0002",
+                },
+                "verification": verification,
+            },
         )
 
     def test_private_receipt_is_exclusive_and_mode_0600(self) -> None:
