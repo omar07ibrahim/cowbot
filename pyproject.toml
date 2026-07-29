@@ -37,6 +37,7 @@ strict = true
 files = [
     "cowbot",
     "tools/run_distribution_gate.py",
+    "tools/run_frozen_holdout.py",
     "tools/verify_distribution.py",
 ]
 

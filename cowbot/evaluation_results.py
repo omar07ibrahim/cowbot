@@ -44,7 +44,9 @@ FROZEN_ROW_COUNT: Final = 256
 
 FIXED_SOURCE_INVENTORY_PATHS: Final = (
     "cowbot/__init__.py",
+    "cowbot/__main__.py",
     "cowbot/_numeric.py",
+    "cowbot/cli.py",
     "cowbot/contracts.py",
     "cowbot/evaluation_executor.py",
     "cowbot/evaluation_harness.py",
@@ -54,10 +56,13 @@ FIXED_SOURCE_INVENTORY_PATHS: Final = (
     "cowbot/evaluation_results.py",
     "cowbot/linalg.py",
     "cowbot/monitor.py",
+    "cowbot/report.py",
     "cowbot/scenario.py",
+    "cowbot/stream.py",
     "evaluation/protocol.v1.json",
     "pyproject.toml",
     "tools/run_frozen_holdout.py",
+    "tools/verify_distribution.py",
 )
 
 _ENDPOINT_ORDER: Final = (
