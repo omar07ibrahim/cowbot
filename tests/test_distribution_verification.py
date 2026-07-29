@@ -1367,14 +1367,29 @@ class DistributionGateUnitTests(unittest.TestCase):
     def test_git_archive_uses_the_requested_epoch_in_real_tar_headers(self) -> None:
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        archive_path = Path(temporary.name) / "source.tar"
+        temporary_root = Path(temporary.name)
+        repository = temporary_root / "source"
+        repository.mkdir()
+        archive_path = temporary_root / "source.tar"
         environment = {
             **run_distribution_gate._safe_environment(),
             "TZ": "Pacific/Honolulu",
         }
+        subprocess.run(
+            ("git", "init", "--quiet", repository),
+            check=True,
+            env=environment,
+        )
+        (repository / "payload.txt").write_bytes(b"immutable payload\n")
+        subprocess.run(
+            ("git", "add", "payload.txt"),
+            cwd=repository,
+            check=True,
+            env=environment,
+        )
         tree_oid = subprocess.run(
-            ("git", "rev-parse", "--verify", "HEAD^{tree}"),
-            cwd=run_distribution_gate.ROOT,
+            ("git", "write-tree"),
+            cwd=repository,
             check=True,
             capture_output=True,
             text=True,
@@ -1389,7 +1404,7 @@ class DistributionGateUnitTests(unittest.TestCase):
                 f"--output={archive_path}",
                 tree_oid,
             ),
-            cwd=run_distribution_gate.ROOT,
+            cwd=repository,
             check=True,
             env=environment,
         )
@@ -1397,7 +1412,7 @@ class DistributionGateUnitTests(unittest.TestCase):
         with tarfile.open(archive_path, mode="r:") as archive:
             members = archive.getmembers()
 
-        self.assertTrue(members)
+        self.assertEqual([member.name for member in members], ["payload.txt"])
         self.assertEqual({member.mtime for member in members}, {789})
 
     def test_private_archive_repo_ignores_source_repo_tar_config(self) -> None:

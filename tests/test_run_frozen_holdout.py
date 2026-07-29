@@ -1558,9 +1558,14 @@ class GateRootProofTests(RunnerTestCase):
         calls: list[tuple[tuple[str, ...], dict[str, str]]] = []
         archive_limits: list[int] = []
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            make_gate_root(root)
-            snapshot = runner._begin_gate_root_snapshot(root)
+            temporary_root = Path(temporary)
+            gate_root = temporary_root / "gate"
+            gate_root.mkdir(mode=0o700)
+            make_gate_root(gate_root)
+            snapshot = runner._begin_gate_root_snapshot(gate_root)
+            repository = temporary_root / "source"
+            object_directory = repository / ".git" / "objects"
+            object_directory.mkdir(parents=True)
 
             def git_command(
                 arguments: Any,
@@ -1584,7 +1589,7 @@ class GateRootProofTests(RunnerTestCase):
                     patch.object(
                         runner,
                         "_git_line",
-                        return_value=str((ROOT / ".git" / "objects").resolve()),
+                        return_value=str(object_directory.resolve()),
                     ),
                     patch.object(
                         runner,
@@ -1593,7 +1598,7 @@ class GateRootProofTests(RunnerTestCase):
                     ),
                 ):
                     runner._regenerate_source_archive(
-                        ROOT,
+                        repository,
                         expected_tree=TREE,
                         object_format="sha1",
                         source_date_epoch=EPOCH,
@@ -1617,51 +1622,71 @@ class GateRootProofTests(RunnerTestCase):
     def test_source_export_stream_regeneration_is_unmocked_and_pathless(
         self,
     ) -> None:
-        expected_tree = runner._git_line(ROOT, ("rev-parse", "HEAD^{tree}"))
-        object_format = runner._git_line(
-            ROOT,
-            ("rev-parse", "--show-object-format"),
-        )
-        source_date_epoch = int(
-            runner._git_line(ROOT, ("show", "-s", "--format=%ct", "HEAD"))
-        )
-        source = runner._gate_git_command(
-            (
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary) / "source"
+            repository.mkdir()
+            _run_test_git(
+                repository,
                 "-c",
-                "tar.umask=0002",
-                "archive",
-                "--format=tar",
-                f"--mtime={runner._git_archive_mtime(source_date_epoch)}",
-                expected_tree,
-            ),
-            cwd=ROOT,
-            environment=runner._git_environment(),
-            stdout_limit=runner.MAX_SOURCE_ARCHIVE_BYTES,
-        )
-        descriptor = runner._sealed_bytes(
-            "cowbot-test-source-export",
-            source,
-            maximum=runner.MAX_SOURCE_ARCHIVE_BYTES,
-            error_code=runner.RunnerErrorCode.GATE_INVALID,
-        )
-        try:
-            metadata = os.fstat(descriptor)
-            retained = runner._RetainedFile(
-                name="<sealed-test-source.tar>",
-                parent="",
-                descriptor=descriptor,
-                metadata=metadata,
-                sha256=hashlib.sha256(source).hexdigest(),
+                "init.defaultBranch=fixture",
+                "init",
+                "--quiet",
             )
-            runner._regenerate_source_archive(
-                ROOT,
-                expected_tree=expected_tree,
-                object_format=object_format,
-                source_date_epoch=source_date_epoch,
-                retained_source=retained,
+            (repository / "payload.txt").write_bytes(b"immutable payload\n")
+            _run_test_git(repository, "add", "payload.txt")
+            _run_test_git(repository, "commit", "--quiet", "-m", "fixture")
+
+            expected_tree = runner._git_line(
+                repository,
+                ("rev-parse", "HEAD^{tree}"),
             )
-        finally:
-            os.close(descriptor)
+            object_format = runner._git_line(
+                repository,
+                ("rev-parse", "--show-object-format"),
+            )
+            source_date_epoch = int(
+                runner._git_line(
+                    repository,
+                    ("show", "-s", "--format=%ct", "HEAD"),
+                )
+            )
+            source = runner._gate_git_command(
+                (
+                    "-c",
+                    "tar.umask=0002",
+                    "archive",
+                    "--format=tar",
+                    f"--mtime={runner._git_archive_mtime(source_date_epoch)}",
+                    expected_tree,
+                ),
+                cwd=repository,
+                environment=runner._git_environment(),
+                stdout_limit=runner.MAX_SOURCE_ARCHIVE_BYTES,
+            )
+            descriptor = runner._sealed_bytes(
+                "cowbot-test-source-export",
+                source,
+                maximum=runner.MAX_SOURCE_ARCHIVE_BYTES,
+                error_code=runner.RunnerErrorCode.GATE_INVALID,
+            )
+            try:
+                metadata = os.fstat(descriptor)
+                retained = runner._RetainedFile(
+                    name="<sealed-test-source.tar>",
+                    parent="",
+                    descriptor=descriptor,
+                    metadata=metadata,
+                    sha256=hashlib.sha256(source).hexdigest(),
+                )
+                runner._regenerate_source_archive(
+                    repository,
+                    expected_tree=expected_tree,
+                    object_format=object_format,
+                    source_date_epoch=source_date_epoch,
+                    retained_source=retained,
+                )
+            finally:
+                os.close(descriptor)
 
     def test_source_archive_manifest_can_be_parsed_twice_without_offset_change(
         self,
