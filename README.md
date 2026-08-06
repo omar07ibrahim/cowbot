@@ -1,5 +1,7 @@
 # COWBOT
 
+[![CI](https://github.com/omar07ibrahim/cowbot/actions/workflows/ci.yml/badge.svg)](https://github.com/omar07ibrahim/cowbot/actions/workflows/ci.yml)
+
 COWBOT is a graph-informed, replayable mechanism watchdog for multivariate
 service telemetry. It fits one small local predictor per metric, calibrates
 residual ranks on a disjoint healthy partition, accumulates sequential
@@ -30,9 +32,9 @@ python -m pip install -e '.[dev]'
 
 The development extra pins the builder, Ruff, strict mypy, and branch coverage
 so the quality receipt does not depend on whichever tools happen to be
-installed globally. The current 383-test suite covers 3,498 of 3,629 runtime
-statements and 998 of 1,066 branch edges: 96.39% statement, 93.62% branch, and
-95.76% combined coverage against a 94.5% fail-under gate.
+installed globally. The current 386-test suite covers 3,526 of 3,658 runtime
+statements and 1,018 of 1,086 branch edges: 96.39% statement, 93.74% branch,
+and 95.78% combined coverage against a 94.5% fail-under gate.
 
 ```bash
 make check
@@ -50,6 +52,25 @@ exercises the installed `cowbot` entry point in a fresh environment. Its
 private receipts bind the tree, build epoch, source export, wheel, telemetry,
 truth, and report digests. Read the
 [distribution integrity contract](docs/distribution-integrity.md).
+
+### Hosted verification
+
+The pinned, least-privilege
+[GitHub Actions workflow](.github/workflows/ci.yml) maps each hosted gate to
+the same public command used locally:
+
+| Hosted gate | Python | Local equivalent | Independently checked contract |
+| --- | --- | --- | --- |
+| `verify` quality matrix | 3.11–3.14 | `make check` | Ruff, formatting, strict mypy, 386 tests, branch coverage, and bytecode compilation |
+| replay evidence | 3.11–3.14 | `make evidence-check` | all 12 CLI, JSON, and SVG artifacts regenerate byte-for-byte from the same source-bound manifest |
+| result-free holdout evidence | 3.11–3.14 | `make holdout-evidence-check` and `python tools/render_protocol_visual.py --check` | preflight capture, three harness diagrams, and the frozen-unrun protocol visual without evaluating a frozen seed |
+| installed distribution | 3.12 | `make distribution-check` | full-history immutable export, two independent builds, sdist-contained tests/evidence, byte-identical wheels, and the installed CLI workflow |
+
+The workflow has only read access to repository contents, pins reusable actions
+to full commit IDs, and never persists checkout credentials. The distribution
+job validates its mode-`0600` linked receipts in place, confirms the tracked
+tree stayed clean, and uploads nothing. No hosted job claims the frozen result
+namespace or evaluates a frozen seed.
 
 The explicit detector command is:
 
@@ -118,6 +139,22 @@ The default report contains:
 Read the raw [CLI capture](docs/evidence/generated/queue-saturation.cli.txt),
 [canonical report](docs/evidence/generated/queue-saturation.report.json), or
 [evidence manifest](docs/evidence/generated/manifest.json) directly.
+
+### Updating the visual evidence
+
+The README embeds recorder outputs, not hand-edited mockups. A source change
+that affects the replay must be followed by `make evidence`; the generated
+CLI capture, canonical JSON, six accessible SVGs, and manifest are committed
+together. `make evidence-check` then rebuilds the complete set in a private
+directory and compares every byte without mutating the committed files.
+
+Terminal figures are rendered from actual stdout, plots are derived from the
+committed telemetry/report records, and captions state the relevant digest or
+claim boundary. The result-free protocol and harness visuals use separate
+manifests and must pass their own `--check` commands. A GIF or video belongs
+here only when real temporal behavior adds information that the inspectable
+static capture cannot; it must be generated from the same executable workflow
+and carry no paths, credentials, seeds, or personal data.
 
 ## Keep the inconvenient case
 
