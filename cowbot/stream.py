@@ -37,7 +37,7 @@ def _assert_json_nesting_limit(line: str, *, line_number: int) -> None:
     in_string = False
     escaped = False
     quote_character = '"'
-    escape_character = '\\'
+    escape_character = "\\"
     for character in line:
         if in_string:
             if escaped:
