@@ -701,6 +701,9 @@ class RefusalAndOrderingTests(RunnerTestCase):
             with (
                 patch.dict(os.environ, {}, clear=True),
                 patch.object(
+                    runner, "_assert_trusted_runtime_executables"
+                ) as executables,
+                patch.object(
                     runner,
                     "_verify_git_state",
                     return_value=("sha1", EPOCH),
@@ -718,6 +721,7 @@ class RefusalAndOrderingTests(RunnerTestCase):
                     runner.RunnerErrorCode.CONFIRMATION_MISMATCH,
                     lambda: runner.perform_preflight(supplied),
                 )
+            executables.assert_called_once_with()
             namespace.assert_not_called()
             inventory.assert_not_called()
 
@@ -822,8 +826,16 @@ class RefusalAndOrderingTests(RunnerTestCase):
             def probe(*_: Any, **__: Any) -> None:
                 events.append("probe")
 
+            def trusted_executables(*_: Any, **__: Any) -> None:
+                events.append("executables")
+
             with (
                 patch.dict(os.environ, {}, clear=True),
+                patch.object(
+                    runner,
+                    "_assert_trusted_runtime_executables",
+                    side_effect=trusted_executables,
+                ),
                 patch.object(runner, "_verify_git_state", side_effect=git_state),
                 patch.object(runner, "_verify_contracts", side_effect=contracts),
                 patch.object(
@@ -864,6 +876,7 @@ class RefusalAndOrderingTests(RunnerTestCase):
                 self.assertEqual(
                     events,
                     [
+                        "executables",
                         "git",
                         "contracts",
                         "namespace",
@@ -871,6 +884,7 @@ class RefusalAndOrderingTests(RunnerTestCase):
                         "gate",
                         "probe",
                         "git",
+                        "executables",
                         "inventory",
                         "gate-barrier",
                         "namespace",

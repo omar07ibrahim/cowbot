@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from math import fsum
 
 from .contracts import Edge, Metric, Sample, StreamSchema, ValidationError
 
@@ -41,7 +42,7 @@ class DeterministicNoise:
 
     def normalish(self) -> float:
         # Irwin-Hall noise avoids platform-dependent transcendental functions.
-        return sum(self.uniform() for _ in range(12)) - 6.0
+        return fsum(self.uniform() for _ in range(12)) - 6.0
 
 
 @dataclass(frozen=True, slots=True, repr=False)

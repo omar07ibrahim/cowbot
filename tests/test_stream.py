@@ -74,6 +74,26 @@ class StreamTests(unittest.TestCase):
         write_stream(second, parsed_schema, parsed_rows)
         self.assertEqual(second.getvalue(), payload)
 
+    def test_json_nesting_bound_is_explicit_and_string_aware(self) -> None:
+        at_limit = (
+            "[" * stream_module.MAX_JSON_NESTING
+            + "0"
+            + "]" * stream_module.MAX_JSON_NESTING
+        )
+        stream_module._assert_json_nesting_limit(at_limit, line_number=1)
+
+        beyond_limit = "[" + at_limit + "]"
+        with self.assertRaisesRegex(ValidationError, "nesting limit"):
+            stream_module._assert_json_nesting_limit(beyond_limit, line_number=7)
+
+        text = 'brackets [ { ] }, quote " and slash \\'
+        encoded = json.dumps({"value": text})
+        stream_module._assert_json_nesting_limit(encoded, line_number=11)
+        self.assertEqual(
+            stream_module._loads_record(encoded, line_number=11),
+            {"value": text},
+        )
+
     def test_reader_rejects_sequence_gaps_and_extra_fields(self) -> None:
         schema, samples, _ = queue_saturation(
             samples=32,

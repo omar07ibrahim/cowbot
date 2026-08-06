@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import io
 import json
@@ -332,6 +333,10 @@ def prepare_report_path(
     try:
         descriptor = os.open(path, flags)
     except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ValidationError(
+                "telemetry input rejects symlinks, including symlink loops"
+            ) from None
         raise ValidationError(
             "telemetry input must be an accessible regular file"
         ) from error

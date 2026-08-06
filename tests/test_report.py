@@ -145,6 +145,9 @@ class ReportTests(unittest.TestCase):
             root = Path(directory)
             stream_path = root / "telemetry.ndjson"
             stream_path.symlink_to(stream_path.name)
+            with self.assertRaisesRegex(ValidationError, "symlink loops"):
+                prepare_report_path(stream_path)
+
             report_path = root / "report.json"
             error = io.StringIO()
 

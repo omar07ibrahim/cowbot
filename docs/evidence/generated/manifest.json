@@ -130,19 +130,19 @@
       "sha256": "7c7e628a19ce46dc9a6acc5b43b30ec970bd7008d8bc57d7cc5279100e83300f"
     },
     {
-      "bytes": 14957,
+      "bytes": 15144,
       "path": "cowbot/report.py",
-      "sha256": "39287d48b4ef2730a81bed38c118681e2c8923d595f648cfa35d31c7b32d2072"
+      "sha256": "bfc5d13142492fa1db4e816d12944c33c40d62497d4bb3fcf4fab6db2ab1fbfe"
     },
     {
-      "bytes": 7452,
+      "bytes": 7475,
       "path": "cowbot/scenario.py",
-      "sha256": "04b6fbe606d63ecd8b1481ee098e9f2a8ac9b61de5b6cf9d41724b7b45b42a28"
+      "sha256": "de20f835bf712ef54f82626764e972aa19e670654dfa40f4ffb4d8ec9121ac9d"
     },
     {
-      "bytes": 11976,
+      "bytes": 12971,
       "path": "cowbot/stream.py",
-      "sha256": "56a2e651c09581e11a09eb8d853835cd1acbd96891c594f5fb768315ab998eef"
+      "sha256": "7a18b768ebb2c6bb7a0212cb95772394e5701bdd5562694fbfa8fa0621c79041"
     },
     {
       "bytes": 8805,

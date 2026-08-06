@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import unittest
 
 from cowbot.contracts import ValidationError
@@ -8,6 +10,7 @@ from cowbot.scenario import (
     queue_saturation,
     queue_saturation_control,
 )
+from cowbot.stream import write_stream
 
 
 class ScenarioTests(unittest.TestCase):
@@ -20,6 +23,33 @@ class ScenarioTests(unittest.TestCase):
 
         self.assertEqual(left, right)
         self.assertTrue(all(-6.0 <= value < 6.0 for value in left))
+
+    def test_noise_binary64_sequence_is_version_stable(self) -> None:
+        noise = DeterministicNoise(42)
+
+        self.assertEqual(
+            tuple(noise.normalish().hex() for _ in range(8)),
+            (
+                "-0x1.c9cbdbd18d0c8p-1",
+                "-0x1.ddbb4c3ab30d0p-2",
+                "0x1.97b0ac15a0fa4p+0",
+                "-0x1.dd2a1d93cedf0p+0",
+                "-0x1.feeebc869a150p-2",
+                "0x1.81ec1da2354d0p+0",
+                "-0x1.48b1616c2dfa0p-2",
+                "0x1.5af15a7073e90p-1",
+            ),
+        )
+
+    def test_default_telemetry_digest_is_version_stable(self) -> None:
+        schema, samples, _ = queue_saturation()
+        destination = io.StringIO()
+        write_stream(destination, schema, samples)
+
+        self.assertEqual(
+            hashlib.sha256(destination.getvalue().encode("utf-8")).hexdigest(),
+            "19b5e2c533bb71e3a9f76ee723d4c25d479a906df582bb537da32af34d62041c",
+        )
 
     def test_scenario_is_reproducible_and_localizes_truth(self) -> None:
         first_schema, first_samples, first_truth = queue_saturation(

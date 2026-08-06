@@ -12,6 +12,7 @@ from typing import TextIO
 from .contracts import Edge, Metric, Sample, StreamSchema, ValidationError
 
 MAX_LINE_BYTES = 1_048_576
+MAX_JSON_NESTING = 128
 MAX_SAMPLES = 1_000_000
 
 
@@ -30,7 +31,36 @@ def _reject_nonstandard_constant(value: str) -> object:
     raise ValidationError(f"non-finite JSON number {value!r} is not allowed")
 
 
+def _assert_json_nesting_limit(line: str, *, line_number: int) -> None:
+    # Scan once so the bound does not depend on the runtime JSON decoder.
+    depth = 0
+    in_string = False
+    escaped = False
+    quote_character = '"'
+    escape_character = '\\'
+    for character in line:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == escape_character:
+                escaped = True
+            elif character == quote_character:
+                in_string = False
+            continue
+        if character == quote_character:
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_JSON_NESTING:
+                raise ValidationError(
+                    f"line {line_number} exceeds the JSON nesting limit"
+                )
+        elif character in "]}":
+            depth = max(0, depth - 1)
+
+
 def _loads_record(line: str, *, line_number: int) -> dict[str, object]:
+    _assert_json_nesting_limit(line, line_number=line_number)
     try:
         record = json.loads(
             line,
