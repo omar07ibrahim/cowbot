@@ -53,3 +53,86 @@ jobs:
 
       - name: Verify frozen protocol visual
         run: python tools/render_protocol_visual.py --check
+
+  distribution:
+    name: distribution (Python 3.12)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LC_ALL: C.UTF-8
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - name: Check out full immutable history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned distribution tools
+        run: python -m pip install --no-input -e ".[dev]"
+
+      - name: Verify reproducible source and wheel distributions
+        run: make distribution-check PYTHON=python
+
+      - name: Verify private linked receipts and clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d "" work_roots < <(
+            find build -mindepth 1 -maxdepth 1 -type d \
+              -name "cowbot-distribution.*" -print0
+          )
+          test "${#work_roots[@]}" -eq 1
+          work_root="${work_roots[0]}"
+          test "$(stat --format="%a" "${work_root}")" = "700"
+
+          distribution_receipt="${work_root}/distribution-verification.json"
+          smoke_receipt="${work_root}/installed-wheel-smoke.json"
+          mapfile -d "" receipt_files < <(
+            find "${work_root}" -mindepth 1 -maxdepth 1 -type f \
+              -name "*.json" -print0
+          )
+          test "${#receipt_files[@]}" -eq 2
+          for receipt in "${distribution_receipt}" "${smoke_receipt}"; do
+            test -f "${receipt}"
+            test ! -L "${receipt}"
+            test "$(stat --format="%a" "${receipt}")" = "600"
+          done
+
+          python -B -c '
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          distribution_bytes = pathlib.Path(sys.argv[1]).read_bytes()
+          smoke_bytes = pathlib.Path(sys.argv[2]).read_bytes()
+          assert distribution_bytes.endswith(b"\n")
+          assert smoke_bytes.endswith(b"\n")
+          distribution = json.loads(distribution_bytes)
+          smoke = json.loads(smoke_bytes)
+          assert distribution["schema_version"] == "cowbot-distribution-gate-receipt-v2"
+          assert smoke["schema_version"] == "cowbot-installed-wheel-smoke-v1"
+          assert distribution["ok"] is True
+          assert distribution["verification"]["ok"] is True
+          assert smoke["ok"] is True
+          assert smoke["source"] == distribution["source"]
+          expected = hashlib.sha256(distribution_bytes).hexdigest()
+          assert smoke["distribution"]["distribution_receipt_sha256"] == expected
+          assert smoke["product_outputs"]["mode"] == "0600"
+          assert smoke["product_outputs"]["runtime_directory_mode"] == "0700"
+          assert smoke["result"]["root_candidate"] == {
+              "alarm_index": 224,
+              "metric": "worker_cpu",
+          }
+          ' "${distribution_receipt}" "${smoke_receipt}"
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
