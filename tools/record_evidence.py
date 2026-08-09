@@ -158,12 +158,15 @@ def _load_json(path: Path) -> dict[str, Any]:
 def _write_bytes(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    descriptor = os.open(path, flags, 0o644)
+    descriptor = os.open(path, flags, 0o600)
     try:
         with os.fdopen(descriptor, "wb") as destination:
             destination.write(payload)
             destination.flush()
             os.fsync(destination.fileno())
+        # Staging remains owner-only; only a complete public evidence file is
+        # deliberately made world-readable after the descriptor is closed.
+        path.chmod(0o644)
     except BaseException:
         path.unlink(missing_ok=True)
         raise
