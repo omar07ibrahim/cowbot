@@ -1126,6 +1126,39 @@ class DistributionVerificationTests(unittest.TestCase):
 
 
 class DistributionGateUnitTests(unittest.TestCase):
+    def test_archive_extraction_keeps_traversal_private_and_files_canonical(
+        self,
+    ) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        archive_path = root / "source.tar"
+        destination = root / "source"
+        members = (
+            ("LICENSE", 0o644, b"license\n"),
+            ("tools/gate.py", 0o755, b"#!/usr/bin/env python3\n"),
+        )
+        with tarfile.open(archive_path, mode="w:") as archive:
+            directory = tarfile.TarInfo("tools/")
+            directory.type = tarfile.DIRTYPE
+            directory.mode = 0o755
+            archive.addfile(directory)
+            for name, mode, payload in members:
+                member = tarfile.TarInfo(name)
+                member.mode = mode
+                member.size = len(payload)
+                archive.addfile(member, io.BytesIO(payload))
+
+        run_distribution_gate._extract_git_archive(archive_path, destination)
+
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((destination / "tools").stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((destination / "LICENSE").stat().st_mode), 0o644)
+        self.assertEqual(
+            stat.S_IMODE((destination / "tools/gate.py").stat().st_mode),
+            0o755,
+        )
+
     def test_safe_environment_drops_host_secrets_and_hardens_python_pip(
         self,
     ) -> None:

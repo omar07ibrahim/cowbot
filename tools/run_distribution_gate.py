@@ -370,8 +370,20 @@ def _prepare_build_root() -> Path:
     return path
 
 
+def _harden_private_directory(path: Path) -> None:
+    path.chmod(0o700)
+    mode = path.lstat().st_mode
+    if (
+        stat.S_ISLNK(mode)
+        or not stat.S_ISDIR(mode)
+        or stat.S_IMODE(mode) != 0o700
+    ):
+        _fail(f"source export directory is not private: {path.name!r}")
+
+
 def _extract_git_archive(archive_path: Path, destination: Path) -> None:
     destination.mkdir(mode=0o700)
+    _harden_private_directory(destination)
     total_size = 0
     seen: set[str] = set()
     try:
@@ -394,7 +406,7 @@ def _extract_git_archive(archive_path: Path, destination: Path) -> None:
                 target = destination / member.name
                 if member.isdir():
                     target.mkdir(mode=0o700, parents=True, exist_ok=True)
-                    os.chmod(target, 0o700)
+                    _harden_private_directory(target)
                     continue
                 if member.size > verify_distribution.MAX_ARCHIVE_FILE_BYTES:
                     _fail(f"git archive member exceeds the size limit: {name!r}")
@@ -402,6 +414,7 @@ def _extract_git_archive(archive_path: Path, destination: Path) -> None:
                 if total_size > verify_distribution.MAX_ARCHIVE_TOTAL_BYTES:
                     _fail("git archive contents exceed the size limit")
                 target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                _harden_private_directory(target.parent)
                 source = archive.extractfile(member)
                 if source is None:
                     _fail(f"cannot read git archive member: {member.name!r}")
@@ -409,7 +422,9 @@ def _extract_git_archive(archive_path: Path, destination: Path) -> None:
                 if len(content) != member.size:
                     _fail(f"git archive member size changed: {name!r}")
                 target.write_bytes(content)
-                os.chmod(target, 0o700 if member.mode & 0o111 else 0o600)
+                # Private traversal directories protect these public build inputs.
+                # Preserve canonical Git modes so backends cannot emit mode-0600 wheels.
+                target.chmod(0o755 if member.mode & 0o111 else 0o644)
     except (
         OSError,
         tarfile.TarError,
