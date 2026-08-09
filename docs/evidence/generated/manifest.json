@@ -150,9 +150,9 @@
       "sha256": "3279af76b54f59cc9211e129ae0d2300cd4b07ec460a0317955af6d5ab31cb1c"
     },
     {
-      "bytes": 62788,
+      "bytes": 62967,
       "path": "tools/record_evidence.py",
-      "sha256": "8c9db2f294e65d3525fb946b2dee7f644e1854ab6204a711f828f15a724a02f7"
+      "sha256": "2ca2c679dd661bd3d2bbec5486a60e398a5196f3781765dee9fd2d859b55ac63"
     }
   ]
 }
