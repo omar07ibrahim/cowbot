@@ -110,11 +110,11 @@ class EvaluationPublicationTests(unittest.TestCase):
         self.assertEqual((results / publication.SUMMARY_FILENAME).read_bytes(), SUMMARY)
         self.assertEqual(
             stat.S_IMODE((results / publication.PER_SEED_FILENAME).stat().st_mode),
-            0o644,
+            0o600,
         )
         self.assertEqual(
             stat.S_IMODE((results / publication.SUMMARY_FILENAME).stat().st_mode),
-            0o644,
+            0o600,
         )
         self.assertEqual(
             receipt,
@@ -414,7 +414,7 @@ class EvaluationPublicationTests(unittest.TestCase):
         def open_path(
             path: object,
             flags: int,
-            mode: int = 0o777,
+            mode: int = 0o600,
             *,
             dir_fd: int | None = None,
         ) -> int:

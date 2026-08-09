@@ -209,9 +209,11 @@ def _create_file(
     payload: bytes,
     mode: int,
 ) -> None:
-    fd = os.open(filename, _CREATE_FLAGS, mode, dir_fd=directory_fd)
+    if mode != 0o600:
+        raise OSError
+    fd = os.open(filename, _CREATE_FLAGS, 0o600, dir_fd=directory_fd)
     try:
-        os.fchmod(fd, mode)
+        os.fchmod(fd, 0o600)
         _write_all(fd, payload)
         os.fsync(fd)
     except BaseException:
@@ -472,7 +474,7 @@ def publish_evaluation_results(
                 stage_filename=PER_SEED_STAGE_FILENAME,
                 public_filename=PER_SEED_FILENAME,
                 payload=artifacts.per_seed_bytes,
-                mode=0o644,
+                mode=0o600,
             )
             if not _secure_namespace(
                 root_fd,
@@ -486,7 +488,7 @@ def publish_evaluation_results(
                 stage_filename=SUMMARY_STAGE_FILENAME,
                 public_filename=SUMMARY_FILENAME,
                 payload=artifacts.summary_bytes,
-                mode=0o644,
+                mode=0o600,
             )
         except OSError:
             publication_failed = True

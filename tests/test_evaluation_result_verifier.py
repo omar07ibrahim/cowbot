@@ -495,7 +495,7 @@ class ResultVerifierArtifactBoundaryTests(ResultVerifierFixture):
         def open_device(
             path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
             flags: int,
-            mode: int = 0o777,
+            mode: int = 0o600,
             *,
             dir_fd: int | None = None,
         ) -> int:
