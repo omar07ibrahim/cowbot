@@ -373,11 +373,7 @@ def _prepare_build_root() -> Path:
 def _harden_private_directory(path: Path) -> None:
     path.chmod(0o700)
     mode = path.lstat().st_mode
-    if (
-        stat.S_ISLNK(mode)
-        or not stat.S_ISDIR(mode)
-        or stat.S_IMODE(mode) != 0o700
-    ):
+    if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode) or stat.S_IMODE(mode) != 0o700:
         _fail(f"source export directory is not private: {path.name!r}")
 
 
