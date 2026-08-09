@@ -1789,7 +1789,7 @@ class GateRootProofTests(RunnerTestCase):
     def test_loose_object_overlay_is_rejected_before_verifier_execution(
         self,
     ) -> None:
-        trusted_verifier = b"raise AssertionError('trusted verifier executed')\n"
+        reference_verifier = b"raise AssertionError('reference verifier executed')\n"
         malicious_verifier = b"raise RuntimeError('loose overlay executed')\n"
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
@@ -1803,9 +1803,9 @@ class GateRootProofTests(RunnerTestCase):
                 target = repo / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 if path == "tools/verify_distribution.py":
-                    payload = trusted_verifier
+                    payload = reference_verifier
                 else:
-                    payload = f"trusted:{path}\n".encode("ascii")
+                    payload = f"reference:{path}\n".encode("ascii")
                 target.write_bytes(payload)
                 target.chmod(0o644)
             _run_test_git(repo, "add", "--all")
@@ -1831,7 +1831,7 @@ class GateRootProofTests(RunnerTestCase):
                 .decode()
                 .strip()
             )
-            verifier_oid = runner._git_blob_oid(trusted_verifier, object_format)
+            verifier_oid = runner._git_blob_oid(reference_verifier, object_format)
             loose_object = (
                 repo / ".git" / "objects" / verifier_oid[:2] / verifier_oid[2:]
             )
@@ -1865,7 +1865,7 @@ class GateRootProofTests(RunnerTestCase):
             self.assertEqual(verifier.git_blob_oid, verifier_oid)
             self.assertEqual(
                 verifier.sha256,
-                hashlib.sha256(trusted_verifier).hexdigest(),
+                hashlib.sha256(reference_verifier).hexdigest(),
             )
             source_archive = _run_test_git(
                 repo,
@@ -2257,7 +2257,7 @@ class GateRootProofTests(RunnerTestCase):
         mutation: str,
     ) -> None:
         runner._set_and_verify_no_new_privileges()
-        trusted = b"trusted-input\n"
+        baseline = b"baseline-input\n"
         forged = b"forged--input\n"
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -2267,7 +2267,7 @@ class GateRootProofTests(RunnerTestCase):
             target = work / relative
             target.parent.mkdir(mode=0o700, parents=True)
             target.parent.chmod(0o700)
-            target.write_bytes(trusted)
+            target.write_bytes(baseline)
             target.chmod(0o600)
             decoy = base / "decoy"
             decoy.write_bytes(forged)
@@ -2291,8 +2291,8 @@ class GateRootProofTests(RunnerTestCase):
                     expected_directories=frozenset(expected_directories),
                     expected_files={
                         relative: (
-                            len(trusted),
-                            hashlib.sha256(trusted).hexdigest(),
+                            len(baseline),
+                            hashlib.sha256(baseline).hexdigest(),
                         )
                     },
                 )
@@ -2319,7 +2319,7 @@ class GateRootProofTests(RunnerTestCase):
                                 os.fsync(stream.fileno())
                             time.sleep(0.15)
                             with target.open("r+b", buffering=0) as stream:
-                                stream.write(trusted)
+                                stream.write(baseline)
                                 stream.truncate()
                                 os.fsync(stream.fileno())
                         else:
@@ -2364,7 +2364,7 @@ class GateRootProofTests(RunnerTestCase):
                 self.assertFalse(attack_errors)
                 self.assertEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, forged)
-                self.assertEqual(target.read_bytes(), trusted)
+                self.assertEqual(target.read_bytes(), baseline)
                 self.assertFalse(any(str(base) in argument for argument in command))
                 self.assert_runner_error(
                     runner.RunnerErrorCode.GATE_INVALID,
